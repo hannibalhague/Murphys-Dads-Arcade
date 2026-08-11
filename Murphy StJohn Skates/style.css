@@ -1,0 +1,102 @@
+/* =======================
+   css/style.css - FIXED
+   ======================= */
+body {
+    margin: 0;
+    padding: 0;
+    background: #111;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+}
+
+.top-controls {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 2000;
+}
+
+.mute-btn, .pause-btn {
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    padding: 8px 12px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 5px;
+    pointer-events: auto;
+    touch-action: manipulation;
+    outline: none;
+    text-align: center;
+}
+
+.mute-btn:active, .pause-btn:active {
+    background: white;
+    color: black;
+}
+
+#controls {
+    position: fixed;
+    bottom: 30px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 30px;
+    box-sizing: border-box;
+    z-index: 1000;
+    pointer-events: auto; /* FIXED: Enable pointer events globally for controls bar */
+}
+
+.left-controls, .right-controls {
+    display: flex;
+    gap: 15px;
+    pointer-events: auto;
+}
+
+.game-btn {
+    width: 75px;
+    height: 75px;
+    background: rgba(255, 255, 255, 0.15); /* Slightly increased visibility */
+    border: 3px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+    color: white;
+    font-size: 14px !important; /* FIXED: Prevent 0 size bug text blocks */
+    font-weight: bold;
+    outline: none;
+    touch-action: manipulation; 
+    -webkit-tap-highlight-color: transparent;
+    pointer-events: auto;
+}
+
+.game-btn:active {
+    background: rgba(255, 255, 255, 0.5);
+    transform: scale(0.9);
+}
+
+#btn-jump {
+    width: 90px;
+    height: 90px;
+    background: rgba(255, 82, 82, 0.2);
+    border-color: rgba(255, 82, 82, 0.5);
+}
+
+.punch-btn {
+    width: 90px;
+    height: 90px;
+    background: rgba(255, 0, 0, 0.2);
+    border-color: rgba(255, 0, 0, 0.5);
+}

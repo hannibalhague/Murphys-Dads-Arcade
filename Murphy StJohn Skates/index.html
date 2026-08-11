@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skate Chibi World</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="top-controls">
+            <button id="muteButton" class="mute-btn">Music: ON</button>
+            <button id="pauseButton" class="pause-btn">PAUSE</button>
+        </div>
+        <canvas id="game"></canvas>
+    </div>
+
+    <div id="controls">
+        <div class="left-controls">
+            <button id="btn-left" class="game-btn">A</button>
+            <button id="btn-right" class="game-btn">D</button>
+        </div>
+
+        <div class="right-controls">
+            <button id="btn-jump" class="game-btn">SPACE</button>
+            <button id="btn-punch" class="game-btn punch-btn">J / F</button>
+        </div>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/background.js"></script>
+    <script src="js/objects.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/npcs.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/characters.js"></script>
+    <script src="js/characterSelect.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/title.js"></script>
+    <script src="js/game.js"></script>
+
+    <script>
+        window.addEventListener('load', () => {
+            if (window.Game) {
+                window.Game.init();
+                window.Game.start();
+            }
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
