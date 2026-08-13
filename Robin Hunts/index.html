@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Photorealistic Forest Survivor - Mobile Optimized Edition</title>
+    <title>Photorealistic Forest Survivor - Epic Boss Edition</title>
     <style>
         body {
             margin: 0;
@@ -50,6 +50,76 @@
             pointer-events: none;
             transition: opacity 0.1s ease-out;
             z-index: 15;
+        }
+
+        #level-up-flash {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(241,196,15,0.6) 0%, rgba(46,204,113,0) 70%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-out;
+            z-index: 22;
+        }
+
+        #boss-warning {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff3333;
+            font-size: 28px;
+            font-weight: 900;
+            text-align: center;
+            text-shadow: 0 0 20px #000, 0 0 10px #ff0000;
+            z-index: 25;
+            display: none;
+            pointer-events: none;
+            letter-spacing: 2px;
+            animation: pulseWarning 0.5s infinite alternate;
+        }
+
+        @keyframes pulseWarning {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        #boss-hud {
+            position: absolute;
+            top: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 350px;
+            max-width: 80%;
+            z-index: 12;
+            display: none;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        #boss-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ff4757;
+            margin-bottom: 3px;
+            text-shadow: 1px 1px 3px #000;
+        }
+
+        #boss-hp-container {
+            width: 100%;
+            height: 12px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #ff4757;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(255, 71, 87, 0.5);
+        }
+
+        #boss-hp-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #c0392b, #e74c3c, #ff6b81);
+            transition: width 0.1s linear;
         }
 
         #ui {
@@ -179,6 +249,12 @@
             margin-bottom: 15px;
             text-align: center;
             text-shadow: 0 2px 10px rgba(241,196,15,0.4);
+            animation: shopGlow 1s infinite alternate;
+        }
+
+        @keyframes shopGlow {
+            0% { text-shadow: 0 2px 10px rgba(241,196,15,0.4); transform: scale(1); }
+            100% { text-shadow: 0 2px 25px rgba(241,196,15,0.9); transform: scale(1.03); }
         }
 
         .choices-container {
@@ -282,6 +358,7 @@
             width: 130px;
             text-align: center;
             cursor: pointer;
+            pointer-events: auto; /* Fix: Allow clicking/touching cards */
             transition: all 0.2s;
         }
 
@@ -318,6 +395,7 @@
             cursor: pointer; margin-top: 15px;
             border-radius: 6px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            pointer-events: auto; /* Fix: Ensure button clickability */
         }
         .btn:hover { background: #2ecc71; }
 
@@ -393,6 +471,16 @@
 
     <div id="game-container">
         <div id="damage-flash"></div>
+        <div id="level-up-flash"></div>
+        <div id="boss-warning">⚠️ EPIC BOSS APPROACHING ⚠️</div>
+        
+        <div id="boss-hud">
+            <div id="boss-name">APEX BOSS</div>
+            <div id="boss-hp-container">
+                <div id="boss-hp-fill"></div>
+            </div>
+        </div>
+
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         
         <div id="minimap-container">
@@ -449,7 +537,7 @@
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false; /* OPTIMIZATION: Disabled for better Android 2D canvas performance */
+ctx.imageSmoothingEnabled = false;
 
 const minimapCanvas = document.getElementById('minimap-canvas');
 const minimapCtx = minimapCanvas.getContext('2d');
@@ -459,13 +547,13 @@ const SCREEN_HEIGHT = canvas.height;
 const WORLD_WIDTH = 14400;   
 const WORLD_HEIGHT = 11200;  
 
-let player, enemies, projectiles, gems, powerUps, forestFeatures, crates, specialLocations, roadNetwork, weatherParticles, knifeEffects;
+let player, enemies, projectiles, gems, powerUps, forestFeatures, crates, specialLocations, roadNetwork, weatherParticles, knifeEffects, razzleParticles = [];
 let gameState = 'CHAR_SELECT';
 let gameTime = 0;
 let frameCount = 0;
 let lastSpawn = 0;
-let lastBossSpawn = 0;
 let lastCrateSpawn = 0;
+let activeBoss = null;
 const xpLevels = [0, 50, 130, 240, 380, 550, 750, 1000, 1300, 1650, 2050, 2500, 3050];
 
 const keys = {};
@@ -480,37 +568,37 @@ const heroClasses = [
         id: 'human',
         name: 'Human Explorer',
         desc: 'Versatile survivor with balanced stats and adaptable tactics.',
-        speed: 2.2,
+        speed: 1.5,
         maxHp: 100,
         armor: 1,
-        weapon: { id: 'dagger', name: "Throwing Dagger", level: 1, timer: 0, cooldown: 40 }
+        weapon: { id: 'dagger', name: "Throwing Dagger", level: 1, timer: 0, cooldown: 95 }
     },
     {
         id: 'dwarf',
         name: 'Dwarf Guardian',
         desc: 'Stout and resilient brawler clad in heavy armor.',
-        speed: 1.7,
+        speed: 1.1,
         maxHp: 160,
         armor: 4,
-        weapon: { id: 'hammer', name: 'Earthshaker Hammer', level: 1, timer: 0, cooldown: 55 }
+        weapon: { id: 'hammer', name: 'Earthshaker Hammer', level: 1, timer: 0, cooldown: 110 }
     },
     {
         id: 'modern_human',
         name: 'Modern Survivalist',
         desc: 'Equipped with precise tactical weaponry.',
-        speed: 2.3,
+        speed: 1.6,
         maxHp: 90,
         armor: 1,
-        weapon: { id: 'pistol', name: 'Tactical Pistol', level: 1, timer: 0, cooldown: 35 }
+        weapon: { id: 'pistol', name: 'Tactical Pistol', level: 1, timer: 0, cooldown: 85 }
     },
     {
         id: 'giant_hero',
         name: 'Half-Giant Berserker',
         desc: 'Towering powerhouse wielding massive sweeping attacks.',
-        speed: 1.9,
+        speed: 1.3,
         maxHp: 200,
         armor: 3,
-        weapon: { id: 'axe', name: 'Giant Greataxe', level: 1, timer: 0, cooldown: 60 }
+        weapon: { id: 'axe', name: 'Giant Greataxe', level: 1, timer: 0, cooldown: 120 }
     }
 ];
 
@@ -525,7 +613,14 @@ function buildCharacterSelectUI() {
             <div style="font-weight: bold; color: #2ecc71; font-size: 14px; margin-bottom: 4px;">${hero.name}</div>
             <div style="font-size: 11px; color: #aaa; line-height: 1.3;">${hero.desc}</div>
         `;
-        card.onclick = () => {
+        card.onclick = (e) => {
+            e.stopPropagation();
+            selectedHeroClass = hero.id;
+            document.querySelectorAll('.hero-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+        };
+        card.ontouchstart = (e) => {
+            e.stopPropagation();
             selectedHeroClass = hero.id;
             document.querySelectorAll('.hero-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
@@ -540,6 +635,10 @@ function startGameFromUI() {
 }
 
 document.getElementById('start-game-btn').onclick = startGameFromUI;
+document.getElementById('start-game-btn').ontouchstart = (e) => {
+    e.preventDefault();
+    startGameFromUI();
+};
 
 function showCharacterSelect() {
     document.getElementById('game-over').style.display = 'none';
@@ -547,6 +646,9 @@ function showCharacterSelect() {
     gameState = 'CHAR_SELECT';
     buildCharacterSelectUI();
 }
+
+// Ensure character selection is built on load
+buildCharacterSelectUI();
 
 window.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
@@ -800,7 +902,6 @@ function generateForestEnvironment() {
         return false;
     }
 
-    /* OPTIMIZATION: Reduced tree, rock, bush counts to reduce GPU loop draw calls */
     for (let i = 0; i < 400; i++) {
         let x, y, attempts = 0;
         do {
@@ -893,13 +994,12 @@ function generateForestEnvironment() {
 
 function initWeather() {
     weatherParticles = [];
-    /* OPTIMIZATION: Reduced weather particles count from 150 to 50 for mobile GPU savings */
     for (let i = 0; i < 50; i++) {
         weatherParticles.push({
             x: Math.random() * WORLD_WIDTH,
             y: Math.random() * WORLD_HEIGHT,
-            vx: -1.5 + Math.random() * 0.5,
-            vy: 6 + Math.random() * 4,
+            vx: -1.0 + Math.random() * 0.3,
+            vy: 3 + Math.random() * 2,
             length: 12 + Math.random() * 10,
             opacity: 0.3 + Math.random() * 0.4
         });
@@ -1298,6 +1398,8 @@ function drawHeroCharacter(ctx, x, y, isMoving, frame, activeWeaponId, heroId) {
     }
 }
 
+// --- EXPANDED ENEMY DRAW FUNCTIONS ---
+
 function drawSpiderEnemy(ctx, x, y, frame) {
     let legAnim = Math.sin(frame * 0.4) * 6;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -1456,136 +1558,209 @@ function drawLizardfolkEnemy(ctx, x, y, frame) {
     ctx.fillRect(x + 2, y - 10, 2, 2);
 }
 
-function drawSpiderBoss(ctx, x, y, frame) {
-    let legAnim = Math.sin(frame * 0.3) * 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.ellipse(x, y + 26, 26, 12, 0, 0, Math.PI * 2); ctx.fill();
+// --- NEW HUMAN ENEMY DRAW FUNCTIONS ---
 
-    ctx.strokeStyle = '#0b0f13'; ctx.lineWidth = 4;
+function drawBanditEnemy(ctx, x, y, frame) {
+    let leg = Math.sin(frame * 0.3) * 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(x - 8, y + 4); ctx.lineTo(x - 26, y - 12 + legAnim); ctx.lineTo(x - 42, y + 4);
-    ctx.moveTo(x - 8, y + 8); ctx.lineTo(x - 28, y + 2 - legAnim); ctx.lineTo(x - 45, y + 18);
-    ctx.moveTo(x + 8, y + 4); ctx.lineTo(x + 26, y - 12 - legAnim); ctx.lineTo(x + 42, y + 4);
-    ctx.moveTo(x + 8, y + 8); ctx.lineTo(x + 28, y + 2 + legAnim); ctx.lineTo(x + 45, y + 18);
+    ctx.moveTo(x - 3, y + 4); ctx.lineTo(x - 4 - leg, y + 14);
+    ctx.moveTo(x + 3, y + 4); ctx.lineTo(x + 4 + leg, y + 14);
     ctx.stroke();
 
-    ctx.fillStyle = '#11181f';
-    ctx.beginPath(); ctx.ellipse(x - 14, y, 18, 14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1b2631';
-    ctx.beginPath(); ctx.ellipse(x + 8, y + 4, 14, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#78281f'; 
+    ctx.beginPath(); ctx.roundRect(x - 8, y - 6, 16, 12, 3); ctx.fill();
 
-    ctx.fillStyle = '#ff3333';
-    for(let i=0; i<4; i++) {
-        ctx.fillRect(x + 14 + (i*2), y - 2 + (i%2)*2, 2, 2);
+    ctx.fillStyle = '#f5d6b0';
+    ctx.beginPath(); ctx.arc(x, y - 7, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a235a'; 
+    ctx.fillRect(x - 5, y - 8, 10, 3);
+
+    ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + 6, y - 2); ctx.lineTo(x + 13, y + 4); ctx.stroke();
+}
+
+function drawMercenaryEnemy(ctx, x, y, frame) {
+    let leg = Math.sin(frame * 0.28) * 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = '#34495e'; ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 3, y + 4); ctx.lineTo(x - 4 - leg, y + 14);
+    ctx.moveTo(x + 3, y + 4); ctx.lineTo(x + 4 + leg, y + 14);
+    ctx.stroke();
+
+    ctx.fillStyle = '#566573'; 
+    ctx.beginPath(); ctx.roundRect(x - 9, y - 7, 18, 13, 3); ctx.fill();
+
+    ctx.fillStyle = '#f5d6b0';
+    ctx.beginPath(); ctx.arc(x, y - 8, 6.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.beginPath(); ctx.arc(x, y - 9, 6.5, Math.PI, 0, false); ctx.fill();
+
+    ctx.fillStyle = '#7f8c8d'; 
+    ctx.fillRect(x + 8, y - 10, 3, 12);
+}
+
+function drawDeserterEnemy(ctx, x, y, frame) {
+    let leg = Math.sin(frame * 0.32) * 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = '#4a2318'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - 3, y + 4); ctx.lineTo(x - 4 - leg, y + 14);
+    ctx.moveTo(x + 3, y + 4); ctx.lineTo(x + 4 + leg, y + 14);
+    ctx.stroke();
+
+    ctx.fillStyle = '#b7950b'; 
+    ctx.beginPath(); ctx.roundRect(x - 8, y - 6, 16, 12, 3); ctx.fill();
+
+    ctx.fillStyle = '#f5d6b0';
+    ctx.beginPath(); ctx.arc(x, y - 7, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7e5109'; 
+    ctx.beginPath(); ctx.arc(x, y - 8, 6, Math.PI, 0, false); ctx.fill();
+
+    ctx.fillStyle = '#d35400'; 
+    ctx.fillRect(x + 7, y - 4, 6, 2);
+}
+
+// --- BOSS DRAW FUNCTIONS ---
+
+function drawSpiderBoss(ctx, x, y, frame) {
+    let legAnim = Math.sin(frame * 0.25) * 14;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.beginPath(); ctx.ellipse(x, y + 45, 52, 22, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = '#3a0007'; ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(x - 15, y + 10); ctx.lineTo(x - 55, y - 25 + legAnim); ctx.lineTo(x - 85, y + 10);
+    ctx.moveTo(x - 15, y + 15); ctx.lineTo(x - 60, y + 5 - legAnim); ctx.lineTo(x - 95, y + 35);
+    ctx.moveTo(x + 15, y + 10); ctx.lineTo(x + 55, y - 25 - legAnim); ctx.lineTo(x + 85, y + 10);
+    ctx.moveTo(x + 15, y + 15); ctx.lineTo(x + 60, y + 5 + legAnim); ctx.lineTo(x + 95, y + 35);
+    ctx.stroke();
+
+    ctx.fillStyle = '#581845';
+    ctx.beginPath(); ctx.ellipse(x - 28, y, 36, 28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#900C3F';
+    ctx.beginPath(); ctx.ellipse(x + 18, y + 8, 28, 24, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#ff0055';
+    for(let i=0; i<6; i++) {
+        ctx.fillRect(x + 24 + (i*3), y - 4 + (i%2)*3, 3, 3);
     }
 }
 
 function drawGoblinBoss(ctx, x, y, frame) {
-    let leg = Math.sin(frame * 0.25) * 6;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.ellipse(x, y + 28, 24, 10, 0, 0, Math.PI * 2); ctx.fill();
+    let leg = Math.sin(frame * 0.2) * 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.beginPath(); ctx.ellipse(x, y + 50, 48, 20, 0, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = '#145a32'; ctx.lineWidth = 6;
+    ctx.strokeStyle = '#0e3a1d'; ctx.lineWidth = 10;
     ctx.beginPath();
-    ctx.moveTo(x - 8, y + 10); ctx.lineTo(x - 12 - leg, y + 28);
-    ctx.moveTo(x + 8, y + 10); ctx.lineTo(x + 12 + leg, y + 28);
+    ctx.moveTo(x - 16, y + 20); ctx.lineTo(x - 24 - leg, y + 50);
+    ctx.moveTo(x + 16, y + 20); ctx.lineTo(x + 24 + leg, y + 50);
     ctx.stroke();
 
-    ctx.fillStyle = '#196f3d';
-    ctx.beginPath(); ctx.roundRect(x - 20, y - 18, 40, 32, 6); ctx.fill();
-    ctx.fillStyle = '#7f8c8d';
-    ctx.beginPath(); ctx.arc(x - 18, y - 16, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + 18, y - 16, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#b7950b';
+    ctx.beginPath(); ctx.roundRect(x - 38, y - 32, 76, 62, 12); ctx.fill();
+    ctx.fillStyle = '#566573';
+    ctx.beginPath(); ctx.arc(x - 34, y - 28, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 34, y - 28, 12, 0, Math.PI * 2); ctx.fill();
 
-    ctx.fillStyle = '#27ae60';
-    ctx.beginPath(); ctx.arc(x, y - 20, 13, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#34495e';
-    ctx.beginPath(); ctx.arc(x, y - 24, 12, Math.PI, 0, false); ctx.fill();
+    ctx.fillStyle = '#1e8449';
+    ctx.beginPath(); ctx.arc(x, y - 38, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7d6608';
+    ctx.beginPath(); ctx.arc(x, y - 46, 22, Math.PI, 0, false); ctx.fill();
     ctx.fillStyle = '#f1c40f';
-    ctx.fillRect(x - 4, y - 21, 3, 3);
-    ctx.fillRect(x + 1, y - 21, 3, 3);
+    ctx.fillRect(x - 8, y - 40, 6, 6);
+    ctx.fillRect(x + 2, y - 40, 6, 6);
 }
 
 function drawDragonBoss(ctx, x, y, frame) {
-    let wingFlap = Math.sin(frame * 0.2) * 14;
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.beginPath(); ctx.ellipse(x, y + 32, 30, 12, 0, 0, Math.PI * 2); ctx.fill();
+    let wingFlap = Math.sin(frame * 0.18) * 25;
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.beginPath(); ctx.ellipse(x, y + 55, 60, 24, 0, 0, Math.PI * 2); ctx.fill();
 
-    ctx.fillStyle = '#4a1510';
+    ctx.fillStyle = '#e67e22';
     ctx.beginPath();
-    ctx.moveTo(x, y - 4);
-    ctx.lineTo(x - 45, y - 22 + wingFlap);
-    ctx.lineTo(x - 20, y + 12);
+    ctx.moveTo(x, y - 8);
+    ctx.lineTo(x - 85, y - 45 + wingFlap);
+    ctx.lineTo(x - 40, y + 25);
     ctx.closePath();
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(x, y - 4);
-    ctx.lineTo(x + 45, y - 22 + wingFlap);
-    ctx.lineTo(x + 20, y + 12);
+    ctx.moveTo(x, y - 8);
+    ctx.lineTo(x + 85, y - 45 + wingFlap);
+    ctx.lineTo(x + 40, y + 25);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#641e16';
-    ctx.beginPath(); ctx.ellipse(x, y, 20, 16, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#922b21';
-    ctx.beginPath(); ctx.arc(x + 18, y - 12, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d35400';
+    ctx.beginPath(); ctx.ellipse(x, y, 40, 32, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ba4a00';
+    ctx.beginPath(); ctx.arc(x + 35, y - 24, 26, 0, Math.PI * 2); ctx.fill();
 
     ctx.fillStyle = '#f39c12';
-    ctx.beginPath(); ctx.moveTo(x + 12, y - 24); ctx.lineTo(x + 8, y - 32); ctx.lineTo(x + 16, y - 24); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(x + 22, y - 24); ctx.lineTo(x + 26, y - 32); ctx.lineTo(x + 20, y - 24); ctx.fill();
-    ctx.fillRect(x + 25, y - 12, 6, 4);
+    ctx.beginPath(); ctx.moveTo(x + 24, y - 48); ctx.lineTo(x + 18, y - 64); ctx.lineTo(x + 30, y - 48); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + 44, y - 48); ctx.lineTo(x + 50, y - 64); ctx.lineTo(x + 40, y - 48); ctx.fill();
+    ctx.fillRect(x + 48, y - 24, 12, 8);
 }
 
 function drawUndeadBoss(ctx, x, y, frame) {
-    let leg = Math.sin(frame * 0.18) * 4;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.ellipse(x, y + 30, 26, 11, 0, 0, Math.PI * 2); ctx.fill();
+    let leg = Math.sin(frame * 0.16) * 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.beginPath(); ctx.ellipse(x, y + 55, 52, 22, 0, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 5;
+    ctx.strokeStyle = '#283747'; ctx.lineWidth = 9;
     ctx.beginPath();
-    ctx.moveTo(x - 8, y + 10); ctx.lineTo(x - 10 - leg, y + 30);
-    ctx.moveTo(x + 8, y + 10); ctx.lineTo(x + 10 + leg, y + 30);
+    ctx.moveTo(x - 16, y + 20); ctx.lineTo(x - 20 - leg, y + 55);
+    ctx.moveTo(x + 16, y + 20); ctx.lineTo(x + 20 + leg, y + 55);
     ctx.stroke();
 
-    ctx.fillStyle = '#1b2631';
-    ctx.beginPath(); ctx.roundRect(x - 20, y - 18, 40, 32, 5); ctx.fill();
-    ctx.fillStyle = '#34495e';
-    ctx.beginPath(); ctx.roundRect(x - 14, y - 14, 28, 22, 3); ctx.fill();
+    ctx.fillStyle = '#2c3e50';
+    ctx.beginPath(); ctx.roundRect(x - 38, y - 35, 76, 62, 10); ctx.fill();
+    ctx.fillStyle = '#8e44ad';
+    ctx.beginPath(); ctx.roundRect(x - 28, y - 28, 56, 46, 6); ctx.fill();
 
-    ctx.fillStyle = '#eaeded';
-    ctx.beginPath(); ctx.arc(x, y - 20, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#e74c3c';
-    ctx.fillRect(x - 4, y - 22, 3, 3);
-    ctx.fillRect(x + 1, y - 22, 3, 3);
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = '#e5e7eb';
+    ctx.beginPath(); ctx.arc(x, y - 40, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3498db';
+    ctx.fillRect(x - 8, y - 44, 6, 6);
+    ctx.fillRect(x + 2, y - 44, 6, 6);
+    ctx.fillStyle = '#9b59b6';
     ctx.beginPath();
-    ctx.moveTo(x - 8, y - 30); ctx.lineTo(x - 5, y - 36); ctx.lineTo(x, y - 30); ctx.lineTo(x + 5, y - 36); ctx.lineTo(x + 8, y - 30);
+    ctx.moveTo(x - 14, y - 60); ctx.lineTo(x - 10, y - 72); ctx.lineTo(x, y - 60); ctx.lineTo(x + 10, y - 72); ctx.lineTo(x + 14, y - 60);
     ctx.closePath();
     ctx.fill();
 }
 
 function drawBeastmanBoss(ctx, x, y, frame) {
-    let leg = Math.sin(frame * 0.25) * 6;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath(); ctx.ellipse(x, y + 28, 25, 11, 0, 0, Math.PI * 2); ctx.fill();
+    let leg = Math.sin(frame * 0.22) * 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.8)';
+    ctx.beginPath(); ctx.ellipse(x, y + 52, 50, 22, 0, 0, Math.PI * 2); ctx.fill();
 
-    ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 6;
+    ctx.strokeStyle = '#1b120c'; ctx.lineWidth = 10;
     ctx.beginPath();
-    ctx.moveTo(x - 9, y + 10); ctx.lineTo(x - 12 - leg, y + 28);
-    ctx.moveTo(x + 9, y + 10); ctx.lineTo(x + 12 + leg, y + 28);
+    ctx.moveTo(x - 18, y + 20); ctx.lineTo(x - 24 - leg, y + 52);
+    ctx.moveTo(x + 18, y + 20); ctx.lineTo(x + 24 + leg, y + 52);
     ctx.stroke();
 
-    ctx.fillStyle = '#4e3822';
-    ctx.beginPath(); ctx.roundRect(x - 22, y - 20, 44, 34, 6); ctx.fill();
-    ctx.fillStyle = '#2c180e';
-    ctx.beginPath(); ctx.roundRect(x - 16, y - 14, 32, 24, 4); ctx.fill();
+    ctx.fillStyle = '#6e2c00';
+    ctx.beginPath(); ctx.roundRect(x - 42, y - 38, 84, 66, 12); ctx.fill();
+    ctx.fillStyle = '#b9770e';
+    ctx.beginPath(); ctx.roundRect(x - 30, y - 28, 60, 48, 8); ctx.fill();
 
-    ctx.fillStyle = '#784212';
-    ctx.beginPath(); ctx.arc(x, y - 22, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#935116';
+    ctx.beginPath(); ctx.arc(x, y - 42, 28, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#d35400';
-    ctx.beginPath(); ctx.moveTo(x - 10, y - 28); ctx.quadraticCurveTo(x - 22, y - 36, x - 14, y - 42); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(x + 10, y - 28); ctx.quadraticCurveTo(x + 22, y - 36, x + 14, y - 42); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x - 20, y - 55); ctx.quadraticCurveTo(x - 42, y - 72, x - 28, y - 84); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + 20, y - 55); ctx.quadraticCurveTo(x + 42, y - 72, x + 28, y - 84); ctx.fill();
 }
 
 class Player {
@@ -1629,10 +1804,10 @@ class Player {
 
     triggerMeleeKnife() {
         if (this.knifeCooldown > 0) return;
-        this.knifeCooldown = 45; 
+        this.knifeCooldown = 85; 
         
         let slashRadius = 75;
-        let baseDmg = 35 + this.damageBonus * 1.5;
+        let baseDmg = 20 + this.damageBonus * 1.0;
 
         knifeEffects.push({
             x: this.x, y: this.y,
@@ -1644,7 +1819,11 @@ class Player {
             if (Math.hypot(e.x - this.x, e.y - this.y) < slashRadius + e.radius) {
                 e.hp -= baseDmg;
                 if (e.hp <= 0) {
-                    gems.push({ x: e.x, y: e.y, value: e.xp, radius: 6, pulse: Math.random() * Math.PI });
+                    gems.push({ x: e.x, y: e.y, value: e.xp, radius: 7, pulse: Math.random() * Math.PI, type: 'gem' });
+                    if (e === activeBoss) {
+                        activeBoss = null;
+                        document.getElementById('boss-hud').style.display = 'none';
+                    }
                     enemies.splice(i, 1);
                 }
             }
@@ -1656,7 +1835,7 @@ class Player {
         let currentSpeed = this.speed;
         if (this.speedBuffTimer > 0) {
             this.speedBuffTimer--;
-            currentSpeed = this.speed * 1.5;
+            currentSpeed = this.speed * 1.4;
         }
         if (this.powerBuffTimer > 0) this.powerBuffTimer--;
         if (this.hitFlashTimer > 0) this.hitFlashTimer--;
@@ -1704,7 +1883,7 @@ class Player {
 
         for (let w of this.weapons) {
             w.timer++;
-            let effectiveCooldown = this.powerBuffTimer > 0 ? Math.max(10, w.cooldown * 0.5) : w.cooldown;
+            let effectiveCooldown = this.powerBuffTimer > 0 ? Math.max(15, w.cooldown * 0.5) : w.cooldown;
             if (w.timer >= effectiveCooldown) {
                 w.timer = 0;
                 this.fireWeapon(w);
@@ -1728,9 +1907,9 @@ class Player {
         if (!nearest) return;
 
         let angle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
-        let baseDmg = 15 + this.damageBonus + (w.level * 6);
+        let baseDmg = 8 + this.damageBonus + (w.level * 3);
         if (this.powerBuffTimer > 0) baseDmg *= 1.5;
-        let pSpeed = 7.0;
+        let pSpeed = 3.5;
 
         if (w.id === 'dagger') {
             let count = w.level >= 3 ? 2 : 1;
@@ -1739,38 +1918,26 @@ class Player {
                 projectiles.push({
                     x: this.x, y: this.y,
                     vx: Math.cos(spreadAngle) * pSpeed, vy: Math.sin(spreadAngle) * pSpeed,
-                    damage: baseDmg, radius: 5, life: 90, color: '#bdc3c7', isDagger: true, rotSpeed: 0.35
+                    damage: baseDmg, radius: 5, life: 120, color: '#bdc3c7', isDagger: true, rotSpeed: 0.35
                 });
             }
         } else if (w.id === 'hammer') {
             projectiles.push({
                 x: this.x, y: this.y,
-                vx: Math.cos(angle) * (pSpeed * 0.6), vy: Math.sin(angle) * (pSpeed * 0.6),
-                damage: baseDmg * 2.5, radius: 11, life: 60, color: '#d35400', explosive: true, isHammer: true, rotation: 0
+                vx: Math.cos(angle) * (pSpeed * 0.5), vy: Math.sin(angle) * (pSpeed * 0.5),
+                damage: baseDmg * 2.0, radius: 11, life: 90, color: '#d35400', explosive: true, isHammer: true, rotation: 0
             });
         } else if (w.id === 'pistol') {
             projectiles.push({
                 x: this.x, y: this.y,
-                vx: Math.cos(angle) * (pSpeed * 1.5), vy: Math.sin(angle) * (pSpeed * 1.5),
-                damage: baseDmg * 1.4, radius: 4, life: 100, color: '#f1c40f', isBullet: true
+                vx: Math.cos(angle) * (pSpeed * 1.1), vy: Math.sin(angle) * (pSpeed * 1.1),
+                damage: baseDmg * 1.2, radius: 4, life: 140, color: '#f1c40f', isBullet: true
             });
         } else if (w.id === 'axe') {
             projectiles.push({
                 x: this.x, y: this.y,
-                vx: Math.cos(angle) * (pSpeed * 0.7), vy: Math.sin(angle) * (pSpeed * 0.7),
-                damage: baseDmg * 2.0, radius: 9, life: 70, color: '#7f8c8d', isAxeProj: true
-            });
-        } else if (w.id === 'monkey_wrench') {
-            projectiles.push({
-                x: this.x, y: this.y,
-                vx: Math.cos(angle) * pSpeed, vy: Math.sin(angle) * pSpeed,
-                damage: baseDmg * 1.2, radius: 6, life: 80, color: '#d35400', isWrench: true
-            });
-        } else if (w.id === 'tentacle_whip') {
-            projectiles.push({
-                x: this.x, y: this.y,
-                vx: Math.cos(angle) * (pSpeed * 0.9), vy: Math.sin(angle) * (pSpeed * 0.9),
-                damage: baseDmg * 1.6, radius: 8, life: 75, color: '#8e44ad', isTentacleProj: true
+                vx: Math.cos(angle) * (pSpeed * 0.6), vy: Math.sin(angle) * (pSpeed * 0.6),
+                damage: baseDmg * 1.8, radius: 9, life: 100, color: '#7f8c8d', isAxeProj: true
             });
         }
     }
@@ -1785,6 +1952,7 @@ function initGame() {
     generateForestEnvironment();
     initWeather();
     knifeEffects = [];
+    razzleParticles = [];
     let chosenConfig = heroClasses.find(h => h.id === selectedHeroClass) || heroClasses[0];
     player = new Player(chosenConfig);
     enemies = [];
@@ -1792,15 +1960,17 @@ function initGame() {
     gems = [];
     powerUps = [];
     crates = [];
+    activeBoss = null;
     gameState = 'PLAYING';
     gameTime = 0;
     frameCount = 0;
     lastSpawn = 0;
-    lastBossSpawn = 0;
     lastCrateSpawn = 0;
     document.getElementById('shop-menu').style.display = 'none';
     document.getElementById('game-over').style.display = 'none';
+    document.getElementById('boss-hud').style.display = 'none';
     document.getElementById('damage-flash').style.opacity = '0';
+    document.getElementById('level-up-flash').style.opacity = '0';
 }
 
 function spawnEnemies() {
@@ -1813,8 +1983,8 @@ function spawnEnemies() {
     }
 
     let regularEnemyCount = enemies.filter(e => !e.isBoss).length;
-    /* OPTIMIZATION: Capped regular enemies at 8 max on screen (down from 15) to save GPU performance */
-    if (regularEnemyCount < 8 && frameCount - lastSpawn > 40) {
+    // Fix: Strict maximum of 12 regular enemies onscreen to optimize Android GPU performance
+    if (regularEnemyCount < 12 && frameCount - lastSpawn > 30) {
         lastSpawn = frameCount;
         let angle = Math.random() * Math.PI * 2;
         let spawnDist = 480 + Math.random() * 120;
@@ -1823,33 +1993,22 @@ function spawnEnemies() {
 
         let biome = getBiomeAt(x, y);
         let enemyType = 'spider';
-        if (biome === 'Spider Webwoods') enemyType = 'spider';
-        else if (biome === 'Goblin Camp') enemyType = 'goblin';
-        else if (biome === 'Dragon Mountains') enemyType = 'dragon';
-        else if (biome === 'Undead Graveyard') enemyType = 'undead';
-        else if (biome === 'Beastman Swamps') enemyType = 'beastman';
-        else enemyType = 'lizardfolk';
-
-        let stats = { type: enemyType, hp: 35, maxHp: 35, speed: 0.4, dmg: 0.15, xp: 2, radius: 11, isBoss: false };
-        enemies.push({ x, y, ...stats });
-    }
-
-    if (gameTime > 0 && gameTime % 40 === 0 && frameCount - lastBossSpawn > 250) {
-        lastBossSpawn = frameCount;
-        let angle = Math.random() * Math.PI * 2;
-        let x = Math.max(50, Math.min(WORLD_WIDTH - 50, player.x + Math.cos(angle) * 550));
-        let y = Math.max(50, Math.min(WORLD_HEIGHT - 50, player.y + Math.sin(angle) * 550));
-        let bossHp = 500 + (gameTime * 5);
         
-        let biome = getBiomeAt(x, y);
-        let bossType = 'boss_spider';
-        if (biome === 'Spider Webwoods') bossType = 'boss_spider';
-        else if (biome === 'Goblin Camp') bossType = 'boss_goblin';
-        else if (biome === 'Dragon Mountains') bossType = 'boss_dragon';
-        else if (biome === 'Undead Graveyard') bossType = 'boss_undead';
-        else bossType = 'boss_beastman';
+        let roll = Math.random();
+        if (roll < 0.45) {
+            if (biome === 'Spider Webwoods') enemyType = 'spider';
+            else if (biome === 'Goblin Camp') enemyType = 'goblin';
+            else if (biome === 'Dragon Mountains') enemyType = 'dragon';
+            else if (biome === 'Undead Graveyard') enemyType = 'undead';
+            else if (biome === 'Beastman Swamps') enemyType = 'beastman';
+            else enemyType = 'lizardfolk';
+        } else {
+            let humanTypes = ['bandit', 'mercenary', 'deserter'];
+            enemyType = humanTypes[Math.floor(Math.random() * humanTypes.length)];
+        }
 
-        enemies.push({ x, y, type: bossType, hp: bossHp, maxHp: bossHp, speed: 0.18, dmg: 0.5, xp: 35, radius: 24, isBoss: true });
+        let stats = { type: enemyType, hp: 45, maxHp: 45, speed: 0.25, dmg: 0.15, xp: 2, radius: 11, isBoss: false };
+        enemies.push({ x, y, ...stats });
     }
 
     if (frameCount - lastCrateSpawn > 350) {
@@ -1858,6 +2017,58 @@ function spawnEnemies() {
             x: Math.random() * (WORLD_WIDTH - 100) + 50,
             y: Math.random() * (WORLD_HEIGHT - 100) + 50,
             radius: 12
+        });
+    }
+}
+
+function checkAndSpawnEpicBoss(newLevel) {
+    if (newLevel > 0 && newLevel % 5 === 0 && !activeBoss) {
+        let angle = Math.random() * Math.PI * 2;
+        let x = Math.max(100, Math.min(WORLD_WIDTH - 100, player.x + Math.cos(angle) * 500));
+        let y = Math.max(100, Math.min(WORLD_HEIGHT - 100, player.y + Math.sin(angle) * 500));
+        let bossHp = 450 + (newLevel * 200);
+        
+        let biome = getBiomeAt(x, y);
+        let bossType = 'boss_spider';
+        let bossNameText = `LEVEL ${newLevel} APEX BOSS: ARACHNE QUEEN`;
+        if (biome === 'Spider Webwoods') { bossType = 'boss_spider'; bossNameText = `LEVEL ${newLevel} APEX BOSS: ARACHNE QUEEN`; }
+        else if (biome === 'Goblin Camp') { bossType = 'boss_goblin'; bossNameText = `LEVEL ${newLevel} APEX BOSS: GOBLIN WARLORD`; }
+        else if (biome === 'Dragon Mountains') { bossType = 'boss_dragon'; bossNameText = `LEVEL ${newLevel} APEX BOSS: INFERNAL DRAKE`; }
+        else if (biome === 'Undead Graveyard') { bossType = 'boss_undead'; bossNameText = `LEVEL ${newLevel} APEX BOSS: LICH KING`; }
+        else { bossType = 'boss_beastman'; bossNameText = `LEVEL ${newLevel} APEX BOSS: ALPHA BEASTMAN`; }
+
+        activeBoss = { 
+            x, y, type: bossType, hp: bossHp, maxHp: bossHp, 
+            speed: 0.22, dmg: 0.6, xp: 120, radius: 42, isBoss: true,
+            name: bossNameText, attackTimer: 0 
+        };
+        enemies.push(activeBoss);
+
+        let warn = document.getElementById('boss-warning');
+        warn.innerText = `⚠️ LEVEL ${newLevel} EPIC BOSS APPROACHING ⚠️`;
+        warn.style.display = 'block';
+        setTimeout(() => { warn.style.display = 'none'; }, 3500);
+        document.getElementById('boss-hud').style.display = 'block';
+        document.getElementById('boss-name').innerText = bossNameText;
+    }
+}
+
+function triggerLevelUpRazzleDazzle() {
+    let flash = document.getElementById('level-up-flash');
+    flash.style.opacity = '1';
+    setTimeout(() => { flash.style.opacity = '0'; }, 300);
+
+    for (let i = 0; i < 40; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = 2 + Math.random() * 5;
+        razzleParticles.push({
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: ['#f1c40f', '#2ecc71', '#3498db', '#e74c3c', '#ffffff'][Math.floor(Math.random() * 5)],
+            radius: 3 + Math.random() * 4,
+            life: 45
         });
     }
 }
@@ -1873,6 +2084,38 @@ function update() {
     spawnEnemies();
     player.update();
     updateWeather(camX, camY);
+
+    for (let i = razzleParticles.length - 1; i >= 0; i--) {
+        let rp = razzleParticles[i];
+        rp.x += rp.vx;
+        rp.y += rp.vy;
+        rp.life--;
+        if (rp.life <= 0) razzleParticles.splice(i, 1);
+    }
+
+    if (activeBoss) {
+        if (!enemies.includes(activeBoss)) {
+            activeBoss = null;
+            document.getElementById('boss-hud').style.display = 'none';
+        } else {
+            let hpPct = Math.max(0, (activeBoss.hp / activeBoss.maxHp) * 100);
+            document.getElementById('boss-hp-fill').style.width = hpPct + '%';
+
+            activeBoss.attackTimer++;
+            if (activeBoss.attackTimer >= 140) {
+                activeBoss.attackTimer = 0;
+                let ringCount = 8;
+                for (let i = 0; i < ringCount; i++) {
+                    let fireAngle = (i / ringCount) * Math.PI * 2;
+                    projectiles.push({
+                        x: activeBoss.x, y: activeBoss.y,
+                        vx: Math.cos(fireAngle) * 2.5, vy: Math.sin(fireAngle) * 2.5,
+                        damage: 20, radius: 7, life: 160, color: '#ff4757', isBossProj: true
+                    });
+                }
+            }
+        }
+    }
 
     for (let i = knifeEffects.length - 1; i >= 0; i--) {
         knifeEffects[i].life--;
@@ -1894,12 +2137,12 @@ function update() {
                 player.damageBonus += 12;
             } else if (loc.type === 'boss') {
                 for (let i = 0; i < 3; i++) {
-                    enemies.push({ x: loc.x + (Math.random()*40-20), y: loc.y + (Math.random()*40-20), type: 'goblin', hp: 120, maxHp: 120, speed: 0.25, dmg: 0.3, xp: 15, radius: 16, isBoss: false });
+                    enemies.push({ x: loc.x + (Math.random()*40-20), y: loc.y + (Math.random()*40-20), type: 'goblin', hp: 90, maxHp: 90, speed: 0.2, dmg: 0.3, xp: 15, radius: 16, isBoss: false });
                 }
             } else if (loc.type === 'pickup') {
                 player.maxHp += 50;
                 player.hp = player.maxHp;
-                player.speed += 0.4;
+                player.speed += 0.3;
             }
         }
     }
@@ -1911,7 +2154,8 @@ function update() {
         e.y += Math.sin(angle) * e.speed;
 
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
-        if (dist < player.radius + e.radius) {
+        let collisionThreshold = player.radius + e.radius;
+        if (dist < collisionThreshold) {
             let actualDmg = Math.max(0.05, e.dmg - player.armor * 0.05);
             player.hp -= actualDmg;
             player.hitFlashTimer = 10;
@@ -1929,37 +2173,50 @@ function update() {
         p.life--;
 
         let hit = false;
-        for (let f of forestFeatures) {
-            if (f.solid && Math.hypot(p.x - f.x, p.y - f.y) < p.radius + f.radius) {
+        if (p.isBossProj) {
+            if (Math.hypot(player.x - p.x, player.y - p.y) < player.radius + p.radius) {
+                player.hp -= 15;
+                player.hitFlashTimer = 15;
                 hit = true;
-                break;
+                if (player.hp <= 0) { player.hp = 0; triggerGameOver(); }
             }
-        }
+        } else {
+            for (let f of forestFeatures) {
+                if (f.solid && Math.hypot(p.x - f.x, p.y - f.y) < p.radius + f.radius) {
+                    hit = true;
+                    break;
+                }
+            }
 
-        for (let j = enemies.length - 1; j >= 0; j--) {
-            let e = enemies[j];
-            if (Math.hypot(p.x - e.x, p.y - e.y) < p.radius + e.radius) {
-                e.hp -= p.damage;
-                
-                if (p.explosive) {
-                    for (let otherE of enemies) {
-                        if (Math.hypot(p.x - otherE.x, p.y - otherE.y) < 80) {
-                            otherE.hp -= p.damage * 0.6;
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                let e = enemies[j];
+                if (Math.hypot(p.x - e.x, p.y - e.y) < p.radius + e.radius) {
+                    e.hp -= p.damage;
+                    
+                    if (p.explosive) {
+                        for (let otherE of enemies) {
+                            if (Math.hypot(p.x - otherE.x, p.y - otherE.y) < 80) {
+                                otherE.hp -= p.damage * 0.6;
+                            }
                         }
                     }
-                }
 
-                hit = true;
+                    hit = true;
 
-                if (e.hp <= 0) {
-                    gems.push({ x: e.x, y: e.y, value: e.xp, radius: 6, pulse: Math.random() * Math.PI });
-                    if (Math.random() < 0.1) {
-                        let types = ['heal', 'speed', 'power'];
-                        powerUps.push({ x: e.x, y: e.y, type: types[Math.floor(Math.random() * types.length)], radius: 10, pulse: Math.random() * Math.PI });
+                    if (e.hp <= 0) {
+                        gems.push({ x: e.x, y: e.y, value: e.xp, radius: 7, pulse: Math.random() * Math.PI, type: 'gem' });
+                        if (Math.random() < 0.12) {
+                            let types = ['heal', 'speed', 'power'];
+                            powerUps.push({ x: e.x, y: e.y, type: types[Math.floor(Math.random() * types.length)], radius: 11, pulse: Math.random() * Math.PI });
+                        }
+                        if (e === activeBoss) {
+                            activeBoss = null;
+                            document.getElementById('boss-hud').style.display = 'none';
+                        }
+                        enemies.splice(j, 1);
                     }
-                    enemies.splice(j, 1);
+                    if (hit) break;
                 }
-                if (hit) break;
             }
         }
 
@@ -1969,7 +2226,7 @@ function update() {
     for (let i = crates.length - 1; i >= 0; i--) {
         let c = crates[i];
         if (Math.hypot(player.x - c.x, player.y - c.y) < player.radius + c.radius) {
-            powerUps.push({ x: c.x, y: c.y, type: 'power', radius: 11, pulse: 0 });
+            powerUps.push({ x: c.x, y: c.y, type: 'power', radius: 12, pulse: 0 });
             crates.splice(i, 1);
         }
     }
@@ -1980,8 +2237,8 @@ function update() {
         let dist = Math.hypot(player.x - g.x, player.y - g.y);
         if (dist < player.magnetRange) {
             let angle = Math.atan2(player.y - g.y, player.x - g.x);
-            g.x += Math.cos(angle) * 4.5;
-            g.y += Math.sin(angle) * 4.5;
+            g.x += Math.cos(angle) * 3.2;
+            g.y += Math.sin(angle) * 3.2;
         }
 
         if (dist < player.radius + g.radius) {
@@ -1991,6 +2248,8 @@ function update() {
             let nextTarget = xpLevels[player.level] || xpLevels[xpLevels.length - 1];
             if (player.level < xpLevels.length && player.xp >= nextTarget) {
                 player.level++;
+                triggerLevelUpRazzleDazzle();
+                checkAndSpawnEpicBoss(player.level);
                 openLevelUpMenu();
             }
         }
@@ -2031,8 +2290,6 @@ const allPossibleUpgrades = [
     { type: 'weapon', id: 'hammer', name: '🔨 Earthshaker Hammer', desc: 'Throws explosive hammers with area damage.' },
     { type: 'weapon', id: 'pistol', name: '🔫 Tactical Pistol', desc: 'Rapidly fires modern ballistic rounds.' },
     { type: 'weapon', id: 'axe', name: '🪓 Giant Greataxe', desc: 'Swings heavy mythological-grade axes.' },
-    { type: 'weapon', id: 'monkey_wrench', name: '🔧 Monkey Wrench', desc: 'Throws heavy mechanical tools at targets.' },
-    { type: 'weapon', id: 'tentacle_whip', name: '🐙 Tentacle Whip', desc: 'Laslashes with organic tentacle energy.' },
     { type: 'stat', id: 'hp', name: '❤️ Vitality', desc: 'Increases Max Health and fully restores HP.' },
     { type: 'stat', id: 'speed', name: '⚡ Quick Foot', desc: 'Increases permanent movement speed.' },
     { type: 'stat', id: 'damage', name: '⚔️ Might', desc: 'Increases flat attack damage.' },
@@ -2081,16 +2338,26 @@ function applyUpgrade(opt) {
     if (opt.type === 'weapon') {
         let existing = player.weapons.find(w => w.id === opt.id);
         if (existing) existing.level++;
-        else player.weapons.push({ id: opt.id, name: opt.name.replace(/[^a-zA-Z ]/g, '').trim(), level: 1, timer: 0, cooldown: 45 });
+        else player.weapons.push({ id: opt.id, name: opt.name.replace(/[^a-zA-Z ]/g, '').trim(), level: 1, timer: 0, cooldown: 95 });
     } else if (opt.type === 'stat') {
         if (opt.id === 'hp') { player.maxHp += 40; player.hp = player.maxHp; }
-        else if (opt.id === 'speed') player.speed += 0.3;
-        else if (opt.id === 'damage') player.damageBonus += 8;
+        else if (opt.id === 'speed') player.speed += 0.25;
+        else if (opt.id === 'damage') player.damageBonus += 6;
         else if (opt.id === 'magnet') player.magnetRange += 45;
         else if (opt.id === 'armor') player.armor += 1;
     }
     document.getElementById('shop-menu').style.display = 'none';
     gameState = 'PLAYING';
+}
+
+function triggerGameOver() {
+    gameState = 'GAMEOVER';
+    let m = String(Math.floor(gameTime / 60)).padStart(2, '0');
+    let s = String(gameTime % 60).padStart(2, '0');
+    document.getElementById('final-time').innerText = `${m}:${s}`;
+    document.getElementById('final-level').innerText = player.level;
+    document.getElementById('game-over').style.display = 'flex';
+    document.getElementById('boss-hud').style.display = 'none';
 }
 
 function drawMinimap() {
@@ -2135,6 +2402,13 @@ function drawMinimap() {
         }
     }
 
+    if (activeBoss) {
+        minimapCtx.fillStyle = '#ff3333';
+        minimapCtx.beginPath();
+        minimapCtx.arc(activeBoss.x * scaleX, activeBoss.y * scaleY, 6, 0, Math.PI * 2);
+        minimapCtx.fill();
+    }
+
     let playerMx = player.x * scaleX;
     let playerMy = player.y * scaleY;
     minimapCtx.fillStyle = '#f1c40f';
@@ -2143,222 +2417,207 @@ function drawMinimap() {
     minimapCtx.fill();
 }
 
-function drawPixelGem(ctx, x, y, radius, pulse) {
-    ctx.save();
-    ctx.translate(x, y);
-    let glowSize = radius + Math.sin(pulse) * 1.5;
-    
-    let grad = ctx.createRadialGradient(0, 0, 1, 0, 0, glowSize * 2.2);
-    grad.addColorStop(0, 'rgba(46, 204, 113, 0.85)');
-    grad.addColorStop(1, 'rgba(46, 204, 113, 0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(0, 0, glowSize * 2.2, 0, Math.PI * 2); ctx.fill();
-
-    ctx.fillStyle = '#2ecc71';
-    ctx.beginPath();
-    ctx.moveTo(0, -glowSize * 1.3);
-    ctx.lineTo(glowSize, 0);
-    ctx.lineTo(0, glowSize * 1.3);
-    ctx.lineTo(-glowSize, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-}
-
-function drawPixelPowerUp(ctx, x, y, type, radius, pulse) {
-    ctx.save();
-    ctx.translate(x, y);
-    let glowSize = radius + Math.sin(pulse) * 2;
-    let col = type === 'heal' ? '#e74c3c' : (type === 'speed' ? '#3498db' : '#f1c40f');
-    
-    let grad = ctx.createRadialGradient(0, 0, 2, 0, 0, glowSize * 2.5);
-    grad.addColorStop(0, col);
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.arc(0, 0, glowSize * 2.5, 0, Math.PI * 2); ctx.fill();
-
-    ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(0, 0, glowSize, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.restore();
-}
-
 function draw() {
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    if (!player) return;
 
-    if (gameState === 'CHAR_SELECT') {
-        return;
-    }
-
-    ctx.save();
     let camX = Math.max(0, Math.min(WORLD_WIDTH - SCREEN_WIDTH, player.x - SCREEN_WIDTH / 2));
     let camY = Math.max(0, Math.min(WORLD_HEIGHT - SCREEN_HEIGHT, player.y - SCREEN_HEIGHT / 2));
+
+    ctx.save();
     ctx.translate(-camX, -camY);
 
-    ctx.fillStyle = '#172b10';
-    ctx.fillRect(camX, camY, SCREEN_WIDTH, SCREEN_HEIGHT);
+    let startX = Math.floor(camX / 400) * 400;
+    let startY = Math.floor(camY / 400) * 400;
+    for (let x = startX; x < camX + SCREEN_WIDTH + 400; x += 400) {
+        for (let y = startY; y < camY + SCREEN_HEIGHT + 400; y += 400) {
+            let biome = getBiomeAt(x, y);
+            let col = '#1b2e13';
+            if (biome === 'Spider Webwoods') col = '#14220e';
+            else if (biome === 'Goblin Camp') col = '#1f2e10';
+            else if (biome === 'Dragon Mountains') col = '#261c14';
+            else if (biome === 'Undead Graveyard') col = '#111c1c';
+            else if (biome === 'Beastman Swamps') col = '#1a261a';
+            else col = '#16281c';
 
-    for (let f of forestFeatures) {
-        if (f.type === 'road') {
-            ctx.strokeStyle = '#8a623b';
-            ctx.lineWidth = f.width;
-            ctx.lineCap = 'butt';
+            ctx.fillStyle = col;
+            ctx.fillRect(x, y, 400, 400);
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, 400, 400);
+        }
+    }
+
+    for (let r of roadNetwork.horizontals) {
+        if (r.y1 >= camY - 100 && r.y1 <= camY + SCREEN_HEIGHT + 100) {
+            ctx.fillStyle = '#5c4033';
+            ctx.fillRect(r.x1, r.y1 - r.width/2, r.x2 - r.x1, r.width);
+            ctx.strokeStyle = '#3d2817';
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(f.x1, f.y1);
-            ctx.lineTo(f.x2, f.y2);
+            ctx.moveTo(r.x1, r.y1 - r.width/2); ctx.lineTo(r.x2, r.y1 - r.width/2);
+            ctx.moveTo(r.x1, r.y1 + r.width/2); ctx.lineTo(r.x2, r.y1 + r.width/2);
             ctx.stroke();
-            ctx.strokeStyle = '#5c3e23';
-            ctx.lineWidth = 4;
+        }
+    }
+    for (let r of roadNetwork.verticals) {
+        if (r.x1 >= camX - 100 && r.x1 <= camX + SCREEN_WIDTH + 100) {
+            ctx.fillStyle = '#5c4033';
+            ctx.fillRect(r.x1 - r.width/2, r.y1, r.width, r.y2 - r.y1);
+            ctx.strokeStyle = '#3d2817';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(r.x1 - r.width/2, r.y1); ctx.lineTo(r.x1 - r.width/2, r.y2);
+            ctx.moveTo(r.x1 + r.width/2, r.y1); ctx.lineTo(r.x1 + r.width/2, r.y2);
             ctx.stroke();
-        } else if (f.type === 'pinetree') {
-            drawRealisticPineTree(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'web') {
-            drawWeb(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'tent') {
-            drawTent(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'gravestone') {
-            drawGravestone(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'crystal') {
-            drawCrystalFormation(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'bramble') {
-            drawBramble(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'volcano_rock') {
-            drawVolcanicAshRock(ctx, f.x, f.y, f.scale);
-        } else if (f.type === 'rock') {
-            drawRealisticRock(ctx, f.x, f.y, f.radiusX, f.radiusY, f.rotation);
-        } else if (f.type === 'bush') {
-            drawRealisticBush(ctx, f.x, f.y, f.radius);
-        } else if (f.type === 'stump') {
-            drawRealisticStump(ctx, f.x, f.y, f.size, f.angle);
-        } else if (f.type === 'log') {
-            drawRealisticLog(ctx, f.x, f.y, f.size, f.angle);
         }
     }
 
     for (let loc of specialLocations) {
-        if (!loc.cleared) {
+        if (!loc.cleared && loc.x >= camX - 100 && loc.x <= camX + SCREEN_WIDTH + 100 && loc.y >= camY - 100 && loc.y <= camY + SCREEN_HEIGHT + 100) {
             ctx.save();
-            ctx.translate(loc.x, loc.y);
             ctx.fillStyle = loc.color;
+            ctx.shadowColor = loc.color;
+            ctx.shadowBlur = 15;
             ctx.beginPath();
-            ctx.arc(0, 0, loc.radius, 0, Math.PI * 2);
-            ctx.globalAlpha = 0.35;
+            ctx.arc(loc.x, loc.y, loc.radius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.globalAlpha = 1.0;
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
+            ctx.shadowBlur = 0;
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold 14px sans-serif';
+            ctx.font = '20px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${loc.icon} ${loc.name}`, 0, -loc.radius - 6);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(loc.icon, loc.x, loc.y);
             ctx.restore();
         }
     }
 
     for (let c of crates) {
-        ctx.fillStyle = '#8e44ad';
-        ctx.fillRect(c.x - c.radius, c.y - c.radius, c.radius * 2, c.radius * 2);
-        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2;
-        ctx.strokeRect(c.x - c.radius, c.y - c.radius, c.radius * 2, c.radius * 2);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif';
-        ctx.fillText('?', c.x - 3, c.y + 4);
+        if (c.x >= camX - 50 && c.x <= camX + SCREEN_WIDTH + 50 && c.y >= camY - 50 && c.y <= camY + SCREEN_HEIGHT + 50) {
+            ctx.fillStyle = '#d35400';
+            ctx.fillRect(c.x - 10, c.y - 10, 20, 20);
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(c.x - 10, c.y - 10, 20, 20);
+        }
     }
 
     for (let g of gems) {
-        drawPixelGem(ctx, g.x, g.y, g.radius, g.pulse);
+        if (g.x >= camX - 30 && g.x <= camX + SCREEN_WIDTH + 30 && g.y >= camY - 30 && g.y <= camY + SCREEN_HEIGHT + 30) {
+            ctx.save();
+            ctx.translate(g.x, g.y);
+            ctx.rotate(g.pulse);
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath();
+            ctx.moveTo(0, -7); ctx.lineTo(5, 0); ctx.lineTo(0, 7); ctx.lineTo(-5, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     for (let pup of powerUps) {
-        drawPixelPowerUp(ctx, pup.x, pup.y, pup.type, pup.radius, pup.pulse);
+        if (pup.x >= camX - 30 && pup.x <= camX + SCREEN_WIDTH + 30 && pup.y >= camY - 30 && pup.y <= camY + SCREEN_HEIGHT + 30) {
+            ctx.save();
+            ctx.translate(pup.x, pup.y);
+            ctx.fillStyle = pup.type === 'heal' ? '#e74c3c' : (pup.type === 'speed' ? '#3498db' : '#f1c40f');
+            ctx.beginPath();
+            ctx.arc(0, 0, pup.radius + Math.sin(pup.pulse)*2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pup.type === 'heal' ? '❤️' : (pup.type === 'speed' ? '⚡' : '🔥'), 0, 0);
+            ctx.restore();
+        }
+    }
+
+    for (let f of forestFeatures) {
+        if (f.x >= camX - 100 && f.x <= camX + SCREEN_WIDTH + 100 && f.y >= camY - 100 && f.y <= camY + SCREEN_HEIGHT + 100) {
+            if (f.type === 'pinetree') drawRealisticPineTree(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'rock') drawRealisticRock(ctx, f.x, f.y, f.radiusX, f.radiusY, f.rotation);
+            else if (f.type === 'bush') drawRealisticBush(ctx, f.x, f.y, f.radius);
+            else if (f.type === 'stump') drawRealisticStump(ctx, f.x, f.y, f.size, f.angle);
+            else if (f.type === 'log') drawRealisticLog(ctx, f.x, f.y, f.size, f.angle);
+            else if (f.type === 'web') drawWeb(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'tent') drawTent(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'gravestone') drawGravestone(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'crystal') drawCrystalFormation(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'bramble') drawBramble(ctx, f.x, f.y, f.scale);
+            else if (f.type === 'volcano_rock') drawVolcanicAshRock(ctx, f.x, f.y, f.scale);
+        }
     }
 
     for (let e of enemies) {
-        if (e.type === 'spider') drawSpiderEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'goblin') drawGoblinEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'dragon') drawDragonEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'undead') drawUndeadEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'beastman') drawBeastmanEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'lizardfolk') drawLizardfolkEnemy(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'boss_spider') drawSpiderBoss(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'boss_goblin') drawGoblinBoss(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'boss_dragon') drawDragonBoss(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'boss_undead') drawUndeadBoss(ctx, e.x, e.y, frameCount);
-        else if (e.type === 'boss_beastman') drawBeastmanBoss(ctx, e.x, e.y, frameCount);
+        if (e.x >= camX - 100 && e.x <= camX + SCREEN_WIDTH + 100 && e.y >= camY - 100 && e.y <= camY + SCREEN_HEIGHT + 100) {
+            if (e.isBoss) {
+                if (e.type === 'boss_spider') drawSpiderBoss(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'boss_goblin') drawGoblinBoss(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'boss_dragon') drawDragonBoss(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'boss_undead') drawUndeadBoss(ctx, e.x, e.y, frameCount);
+                else drawBeastmanBoss(ctx, e.x, e.y, frameCount);
+            } else {
+                if (e.type === 'spider') drawSpiderEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'goblin') drawGoblinEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'dragon') drawDragonEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'undead') drawUndeadEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'beastman') drawBeastmanEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'lizardfolk') drawLizardfolkEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'bandit') drawBanditEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'mercenary') drawMercenaryEnemy(ctx, e.x, e.y, frameCount);
+                else if (e.type === 'deserter') drawDeserterEnemy(ctx, e.x, e.y, frameCount);
+                else drawSpiderEnemy(ctx, e.x, e.y, frameCount);
+            }
+
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(e.x - 12, e.y - e.radius - 10, 24, 4);
+            ctx.fillStyle = e.isBoss ? '#ff4757' : '#2ecc71';
+            ctx.fillRect(e.x - 12, e.y - e.radius - 10, 24 * (Math.max(0, e.hp) / e.maxHp), 4);
+        }
     }
+
+    player.draw();
 
     for (let p of projectiles) {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(Math.atan2(p.vy, p.vx));
-
-        if (p.isDagger) {
-            ctx.rotate(frameCount * 0.4);
-            ctx.fillStyle = '#bdc3c7';
-            ctx.beginPath();
-            ctx.moveTo(8, 0); ctx.lineTo(-4, -3); ctx.lineTo(-2, 0); ctx.lineTo(-4, 3);
-            ctx.closePath();
-            ctx.fill();
-        } else if (p.isHammer) {
-            ctx.rotate(frameCount * 0.2);
-            ctx.fillStyle = '#7f8c8d';
-            ctx.fillRect(2, -6, 6, 12);
-        } else if (p.isBullet) {
-            ctx.fillStyle = '#f1c40f';
-            ctx.fillRect(-3, -1, 6, 2);
-        } else if (p.isAxeProj) {
-            ctx.rotate(frameCount * 0.3);
-            ctx.fillStyle = '#95a5a6';
-            ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill();
-        } else if (p.isWrench) {
-            ctx.rotate(frameCount * 0.35);
-            ctx.fillStyle = '#d35400';
-            ctx.fillRect(-4, -2, 8, 4);
-        } else if (p.isTentacleProj) {
-            ctx.fillStyle = '#8e44ad';
-            ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.restore();
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
     }
 
-    for (let k of knifeEffects) {
+    for (let ke of knifeEffects) {
         ctx.save();
-        ctx.translate(k.x, k.y);
-        ctx.strokeStyle = 'rgba(255, 255, 255, ' + (k.life / k.maxLife) + ')';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(236, 240, 241, 0.85)';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(0, 0, k.radius * (1 - k.life / k.maxLife * 0.3), 0, Math.PI * 2);
+        let progress = 1 - (ke.life / ke.maxLife);
+        ctx.arc(ke.x, ke.y, ke.radius * progress, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
     }
 
-    player.draw();
+    for (let rp of razzleParticles) {
+        ctx.fillStyle = rp.color;
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, rp.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
     drawWeather(ctx, camX, camY);
 
     ctx.restore();
-
     drawMinimap();
 }
 
-function triggerGameOver() {
-    gameState = 'GAMEOVER';
-    let m = String(Math.floor(gameTime / 60)).padStart(2, '0');
-    let s = String(gameTime % 60).padStart(2, '0');
-    document.getElementById('final-time').innerText = `${m}:${s}`;
-    document.getElementById('final-level').innerText = player.level;
-    document.getElementById('game-over').style.display = 'flex';
-}
-
-function loop() {
+function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(loop);
+    requestAnimationFrame(gameLoop);
 }
 
-buildCharacterSelectUI();
-requestAnimationFrame(loop);
+requestAnimationFrame(gameLoop);
 </script>
-
 </body>
 </html>
