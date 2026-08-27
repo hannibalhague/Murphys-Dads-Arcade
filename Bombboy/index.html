@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Normandy 1944: Fortress Assault SNES</title>
+<style>
+  html,body{margin:0;height:100%;background:#090d16;color:#f8fafc;font-family:'Courier New',Courier,monospace;overflow:hidden;touch-action:none}
+  body{display:grid;place-items:center}
+  #wrap{position:relative;width:min(920px,100vw);height:min(600px,calc(100vh - 112px));margin-bottom:102px}
+  canvas{width:100%;height:100%;display:block;background:#111827;image-rendering:pixelated;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.9);border:4px solid #374151}
+  #hud{position:absolute;left:16px;top:12px;right:16px;display:flex;justify-content:space-between;pointer-events:none;text-shadow:2px 2px #000;font-weight:900;z-index:10;font-size:14px;letter-spacing:1px;color:#e2e8f0}
+  #hint{position:absolute;bottom:-36px;left:50%;transform:translateX(-50%);font-size:13px;opacity:.8;pointer-events:none;z-index:10;text-align:center;width:100%;white-space:nowrap;color:#94a3b8}
+  #screen{position:absolute;inset:0;display:grid;place-items:center;background:rgba(9,13,22,0.94);z-index:20;border-radius:12px}
+  .panel{background:#1f2937;border:4px solid #15803d;border-radius:16px;padding:32px 44px;text-align:center;box-shadow:0 25px 60px rgba(0,0,0,0.9)}
+  h1{margin:0 0 10px;font-size:40px;color:#4ade80;text-shadow:3px 3px #052e16;letter-spacing:2px}
+  button{border:0;border-radius:8px;padding:14px 32px;background:linear-gradient(to bottom, #16a34a, #15803d);color:#fff;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 6px 20px rgba(22,163,74,0.5);transition:transform 0.1s;letter-spacing:1px}
+  button:active{transform:scale(0.95)}
+  .small{font-size:13px;opacity:.85;line-height:1.6;margin-top:12px;color:#94a3b8}
+  
+  #touch-controls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 110px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px 15px 20px;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 50;
+    user-select: none;
+    background: linear-gradient(to top, rgba(9,13,22,0.95), transparent);
+  }
+  .touch-group {
+    display: flex;
+    gap: 12px;
+    pointer-events: auto;
+    align-items: center;
+  }
+  
+  /* Circular Movement Stick */
+  #stick-base {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    background: rgba(21, 128, 61, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    backdrop-filter: blur(6px);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #stick-head {
+    position: absolute;
+    top: 30px;
+    left: 30px;
+    width: 50px;
+    height: 50px;
+    background: rgba(74, 222, 128, 0.85);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    pointer-events: none;
+  }
+
+  .t-btn {
+    background: rgba(220, 38, 38, 0.8);
+    border: 2px solid rgba(255,100,100,0.6);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    border-radius: 50%;
+    width: 72px;
+    height: 72px;
+    display: grid;
+    place-items: center;
+    backdrop-filter: blur(6px);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    pointer-events: auto;
+  }
+  .t-btn:active, .t-btn.active {
+    background: rgba(255, 80, 80, 1);
+    border-color: #fff;
+  }
+
+  #quality-btn{position:absolute;right:14px;bottom:12px;z-index:12;padding:7px 10px;font-size:11px;border-radius:7px;background:#263238;color:#d9e2e3;border:1px solid #607074}
+  @media (max-width:700px){
+    #wrap{width:100vw;height:calc(100vh - 105px);margin-bottom:105px}
+    canvas{border-width:2px;border-radius:6px}
+    #hud{left:8px;right:8px;top:7px;font-size:10px;letter-spacing:.4px}
+    #hint{display:none}
+    #touch-controls{height:105px;padding:0 10px 10px}
+    #stick-base{width:90px;height:90px}
+    #stick-head{width:40px;height:40px;top:25px;left:25px}
+    .t-btn{width:64px;height:64px;font-size:10px}
+    .panel{max-width:84vw;padding:20px 18px}
+    h1{font-size:25px}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="game" width="920" height="580"></canvas>
+<div id="hud">
+  <div>❤️ LIVES: <span id="lives">3</span> | 🧨 <span id="maxBombs">1</span> | 🔥 <span id="firePower">1</span> | 🔑 INTEL: <span id="hasKey">NO</span></div>
+  <div>🎯 <span id="radarHint">SECURE INTEL</span> | STAGE <span id="level">1</span> | SCORE <span id="score">0</span></div>
+</div>
+<div id="hint">WASD / Arrows or Circular Joystick to Move • Space / DYNAMITE to Plant • Reach Castle Gate to Progress!</div>
+<div id="screen">
+  <div class="panel">
+    <h1>OPERATION NEPTUNE: CASTLE ASSAULT</h1>
+    <p>Storm the beachhead from your Higgins boat alongside your reinforcement squad.<br>Break through spiky razor wire, defeat turret tanks, grab the intel, and reach the right-side castle gate!</p>
+    <p class="small">Press Any Key or Click Below to Launch Assault</p>
+    <button id="start">BEGIN ASSAULT</button>
+  </div>
+</div>
+</div>
+
+<button id="quality-btn" type="button">DETAIL: HIGH</button>
+<div id="touch-controls">
+  <div class="touch-group">
+    <div id="stick-base">
+      <div id="stick-head"></div>
+    </div>
+  </div>
+  <div class="touch-group">
+    <div class="t-btn" id="btn-bomb">DYNAMITE</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+let highDetail = true;
+document.getElementById("quality-btn").addEventListener("click", ()=>{
+  highDetail=!highDetail;
+  document.getElementById("quality-btn").textContent = highDetail ? "DETAIL: HIGH" : "DETAIL: LOW";
+  ctx.imageSmoothingEnabled = !highDetail;
+});
+
+const c = document.getElementById("game"), ctx = c.getContext("2d");
+const W = c.width, H = c.height, T = 30, COLS = Math.floor(W/T), ROWS = Math.floor(H/T);
+let keys = {}, state = "menu", level = 1, score = 0, lives = 3;
+let grid = [], bombs = [], explosions = [], powerups = [], enemies = [], allies = [], particles = [], smokeParticles = [], bloodStains = [], deadBodies = [], projectiles = [], planes = [];
+let player = { x: 0, y: 0, w: 28, h: 28, speed: 185, maxBombs: 1, firePower: 1, inv: 0, alive: true, hasKey: false, vx: 0, vy: 0 };
+let exitDoor = null, levelKey = null;
+let waterwayCols = [], bridgeRow = -1;
+let planeTimer = 0;
+let reinforceTimer = 0;
+
+let stickData = { active: false, id: null, x: 0, y: 0, cx: 0, cy: 0 };
+const stickBase = document.getElementById("stick-base");
+const stickHead = document.getElementById("stick-head");
+
+stickBase.addEventListener("pointerdown", e => {
+  stickData.active = true;
+  stickData.id = e.pointerId;
+  const rect = stickBase.getBoundingClientRect();
+  stickData.cx = rect.left + rect.width / 2;
+  stickData.cy = rect.top + rect.height / 2;
+  updateStick(e.clientX, e.clientY);
+  stickBase.setPointerCapture(e.pointerId);
+});
+
+stickBase.addEventListener("pointermove", e => {
+  if(!stickData.active || e.pointerId !== stickData.id) return;
+  updateStick(e.clientX, e.clientY);
+});
+
+function endStick(e){
+  if(e.pointerId !== stickData.id) return;
+  stickData.active = false;
+  stickData.id = null;
+  stickData.x = 0;
+  stickData.y = 0;
+  stickHead.style.transform = `translate(0px, 0px)`;
+}
+stickBase.addEventListener("pointerup", endStick);
+stickBase.addEventListener("pointercancel", endStick);
+
+function updateStick(clientX, clientY){
+  let dx = clientX - stickData.cx;
+  let dy = clientY - stickData.cy;
+  let dist = Math.hypot(dx, dy);
+  let maxDist = 35;
+  if(dist > maxDist){
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+  }
+  stickHead.style.transform = `translate(${dx}px, ${dy}px)`;
+  stickData.x = dx / maxDist;
+  stickData.y = dy / maxDist;
+}
+
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if([" ", "arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", "h", "j", "k", "l"].includes(k)) e.preventDefault();
+  
+  if(state === "menu" || state === "dead" || state === "win"){
+    startGame();
+    return;
+  }
+  if(state === "play" && (k === " " || k === "j" || k === "x")){
+    dropBomb();
+  }
+});
+addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.getElementById("start").onclick = startGame;
+
+const bombBtn = document.getElementById("btn-bomb");
+bombBtn.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  bombBtn.classList.add("active");
+  if(state === "play") dropBomb();
+});
+bombBtn.addEventListener("pointerup", e => bombBtn.classList.remove("active"));
+bombBtn.addEventListener("pointercancel", e => bombBtn.classList.remove("active"));
+
+function startGame(){
+  state = "play";
+  document.getElementById("screen").style.display = "none";
+  level = 1; score = 0; lives = 3;
+  player.maxBombs = 1; player.firePower = 1; player.speed = 185; player.hasKey = false;
+  planes = []; projectiles = []; smokeParticles = []; bloodStains = []; deadBodies = [];
+  initLevel();
+}
+
+function initLevel(){
+  grid = Array.from({length: ROWS}, (y, r) => Array.from({length: COLS}, (x, c) => {
+    if(r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) return 1;
+    if(r % 2 === 0 && c % 2 === 0) return 1;
+    if(c <= 8 && Math.abs(r - Math.floor(ROWS/2)) <= 4) return 0;
+    if(c >= COLS - 3) return 0;
+    return Math.random() < 0.4 ? 2 : 0;
+  }));
+
+  waterwayCols = [Math.floor(COLS * 0.22), Math.floor(COLS * 0.45)];
+  bridgeRow = Math.floor(ROWS / 2);
+
+  player.x = T * 2 + 10; player.y = (Math.floor(ROWS/2)) * T + 6; player.alive = true; player.inv = 0; player.hasKey = false;
+  player.vx = 0; player.vy = 0;
+  bombs = []; explosions = []; powerups = []; enemies = []; allies = []; particles = []; smokeParticles = []; projectiles = []; levelKey = null;
+
+  exitDoor = { r: Math.floor(ROWS / 2), c: COLS - 1, revealed: true, locked: true };
+
+  // Initialize squad with active wandering / patrolling states
+  for(let i = 0; i < 2; i++){
+    allies.push({
+      x: T * 2 + 50 + (i * 25),
+      y: (Math.floor(ROWS/2) + (i === 0 ? -1 : 1)) * T + 6,
+      w: 28, h: 28,
+      speed: 150,
+      vx: 40, vy: 40,
+      patrolTimer: Math.random() * 3,
+      shootTimer: Math.random() * 2,
+      alive: true
+    });
+  }
+
+  let brickList = [];
+  for(let r = 1; r < ROWS - 1; r++){
+    for(let c = 6; c < COLS - 4; c++){
+      if(grid[r][c] === 2) brickList.push({r, c});
+    }
+  }
+
+  if(brickList.length > 0){
+    let kIdx = Math.floor(Math.random() * brickList.length);
+    levelKey = { r: brickList[kIdx].r, c: brickList[kIdx].c, x: brickList[kIdx].c * T + 8, y: brickList[kIdx].r * T + 8, w: 24, h: 24, revealed: false, collected: false };
+  } else {
+    levelKey = { r: 1, c: COLS - 5, x: (COLS - 5) * T + 8, y: 1 * T + 8, w: 24, h: 24, revealed: true, collected: false };
+  }
+
+  let enemyCount = Math.min(3 + level * 2, 11);
+  for(let i = 0; i < enemyCount; i++){
+    let er, ec;
+    do {
+      er = Math.floor(Math.random() * (ROWS - 2)) + 1;
+      ec = Math.floor(Math.random() * (COLS - 8)) + 5;
+    } while(grid[er][ec] !== 0);
+
+    let isTank = Math.random() < 0.45;
+    enemies.push({
+      x: ec * T + 4, y: er * T + 4, w: isTank ? 32 : 26, h: isTank ? 32 : 26,
+      vx: Math.random() < 0.5 ? 45 : -45,
+      vy: 0,
+      speed: (isTank ? 45 : 65) + level * 2,
+      isTank: isTank,
+      shootCooldown: Math.random() * 3,
+      alive: true
+    });
+  }
+  updateHud();
+}
+
+function updateHud(){
+  document.getElementById("lives").textContent = lives;
+  document.getElementById("maxBombs").textContent = player.maxBombs;
+  document.getElementById("firePower").textContent = player.firePower;
+  document.getElementById("hasKey").textContent = player.hasKey ? "YES" : "NO";
+  document.getElementById("level").textContent = level;
+  document.getElementById("score").textContent = score;
+
+  let radar = document.getElementById("radarHint");
+  if(!player.hasKey && levelKey){
+    if(levelKey.revealed){
+      radar.textContent = "🔑 INTEL SECURED! HEAD TO RIGHT CASTLE GATE";
+    } else {
+      radar.textContent = `🔑 INTEL AT [R:${levelKey.r}, C:${levelKey.c}]`;
+    }
+  } else {
+    radar.textContent = "🚪 REACH RIGHT HILLTOP CASTLE GATE!";
+  }
+}
+
+function rectHit(a, b){
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function dropBomb(){
+  if(!player.alive) return;
+  let activeBombs = bombs.filter(b => !b.exploded).length;
+  if(activeBombs >= player.maxBombs) return;
+
+  let bc = Math.floor((player.x + player.w/2) / T);
+  let br = Math.floor((player.y + player.h/2) / T);
+
+  if(bombs.some(b => b.br === br && b.bc === bc)) return;
+
+  bombs.push({
+    br: br, bc: bc,
+    x: bc * T + (T - 28)/2,
+    y: br * T + (T - 28)/2,
+    w: 28, h: 28,
+    timer: 2.2,
+    range: player.firePower,
+    exploded: false
+  });
+}
+
+function explodeBomb(b){
+  if(b.exploded) return;
+  b.exploded = true;
+  score += 25;
+
+  let flareCells = [{r: b.br, c: b.bc}];
+  let dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+
+  dirs.forEach(([dr, dc]) => {
+    for(let i = 1; i <= b.range; i++){
+      let tr = b.br + dr * i;
+      let tc = b.bc + dc * i;
+      if(tr < 0 || tr >= ROWS || tc < 0 || tc >= COLS) break;
+      let tile = grid[tr][tc];
+      if(tile === 1) break;
+
+      flareCells.push({r: tr, c: tc});
+
+      if(tile === 2){
+        grid[tr][tc] = 0;
+        score += 80;
+        createParticles(tc * T + T/2, tr * T + T/2, "#94a3b8", 16);
+        createSmoke(tc * T + T/2, tr * T + T/2, 6);
+        bloodStains.push({x: tc * T + T/2, y: tr * T + T/2, radius: 14});
+
+        if(levelKey && levelKey.r === tr && levelKey.c === tc){
+          levelKey.revealed = true;
+        }
+
+        if(Math.random() < 0.45 && !powerups.some(p => p.r === tr && p.c === tc)){
+          let types = ["bomb", "fire", "speed"];
+          powerups.push({ r: tr, c: tc, x: tc*T + 8, y: tr*T + 8, w: 24, h: 24, type: types[Math.floor(Math.random()*types.length)] });
+        }
+        updateHud();
+        break;
+      }
+    }
+  });
+
+  flareCells.forEach(cell => {
+    explosions.push({r: cell.r, c: cell.c, timer: 0.5, maxTimer: 0.5});
+    createParticles(cell.c * T + T/2, cell.r * T + T/2, "#f59e0b", 10);
+    createSmoke(cell.c * T + T/2, cell.r * T + T/2, 4);
+
+    bombs.forEach(other => {
+      if(!other.exploded && other.br === cell.r && other.bc === cell.c){
+        explodeBomb(other);
+      }
+    });
+
+    enemies.forEach(e => {
+      let ec = Math.floor((e.x + e.w/2)/T);
+      let er = Math.floor((e.y + e.h/2)/T);
+      if(er === cell.r && ec === cell.c && e.alive){
+        e.alive = false;
+        score += e.isTank ? 450 : 320;
+        createParticles(e.x + 16, e.y + 16, "#ea580c", 20);
+        createSmoke(e.x + 16, e.y + 16, 5);
+        bloodStains.push({x: e.x + 16, y: e.y + 16, radius: 18});
+        deadBodies.push({x: e.x, y: e.y, isTank: e.isTank, isAlly: false, angle: Math.random() * Math.PI});
+      }
+    });
+
+    // Allies can now be killed by explosions!
+    allies.forEach(a => {
+      let ac = Math.floor((a.x + a.w/2)/T);
+      let ar = Math.floor((a.y + a.h/2)/T);
+      if(ar === cell.r && ac === cell.c && a.alive){
+        a.alive = false;
+        createParticles(a.x + 14, a.y + 14, "#dc2626", 18);
+        createSmoke(a.x + 14, a.y + 14, 4);
+        bloodStains.push({x: a.x + 14, y: a.y + 14, radius: 16});
+        deadBodies.push({x: a.x, y: a.y, isTank: false, isAlly: true, angle: Math.random() * Math.PI});
+      }
+    });
+
+    let pc = Math.floor((player.x + player.w/2)/T);
+    let pr = Math.floor((player.y + player.h/2)/T);
+    if(pr === cell.r && pc === cell.c && player.alive && player.inv <= 0){
+      playerHurt();
+    }
+  });
+}
+
+function createParticles(x, y, col, count){
+  for(let i = 0; i < count; i++){
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 240,
+      vy: (Math.random() - 0.5) * 240,
+      life: 0.4 + Math.random() * 0.4,
+      col
+    });
+  }
+}
+
+function createSmoke(x, y, count){
+  for(let i = 0; i < count; i++){
+    smokeParticles.push({
+      x: x + (Math.random() - 0.5) * 20,
+      y: y + (Math.random() - 0.5) * 20,
+      vx: (Math.random() - 0.5) * 30,
+      vy: -20 - Math.random() * 30,
+      radius: 10 + Math.random() * 14,
+      life: 1.0 + Math.random() * 0.8,
+      maxLife: 1.8
+    });
+  }
+}
+
+function playerHurt(){
+  if(player.inv > 0 || !player.alive) return;
+  lives--;
+  player.inv = 2.0;
+  bloodStains.push({x: player.x + 14, y: player.y + 14, radius: 18});
+  updateHud();
+  createParticles(player.x + 14, player.y + 14, "#dc2626", 25);
+  createSmoke(player.x + 14, player.y + 14, 5);
+  if(lives <= 0){
+    player.alive = false;
+    state = "dead";
+    deadBodies.push({x: player.x, y: player.y, isTank: false, isAlly: true, angle: 0.5});
+    showScreen("BEACHHEAD LOST", `Final Score: ${score}<br><br><button onclick='startGame()'>TRY AGAIN</button>`);
+  }
+}
+
+function showScreen(title, body){
+  const s = document.getElementById("screen");
+  s.style.display = "grid";
+  s.innerHTML = `<div class="panel"><h1>${title}</h1><p>${body}</p></div>`;
+}
+
+function canMoveTo(nx, ny, w, h){
+  let corners = [
+    {x: nx + 3, y: ny + 3},
+    {x: nx + w - 3, y: ny + 3},
+    {x: nx + 3, y: ny + h - 3},
+    {x: nx + w - 3, y: ny + h - 3}
+  ];
+  for(let pt of corners){
+    let tc = Math.floor(pt.x / T);
+    let tr = Math.floor(pt.y / T);
+    if(tr < 0 || tr >= ROWS || tc < 0 || tc >= COLS) return false;
+    if(grid[tr][tc] > 0) return false;
+
+    for(let b of bombs){
+      if(!b.exploded && b.br === tr && b.bc === tc){
+        let pCenterX = nx + w/2;
+        let pCenterY = ny + h/2;
+        let tileCenterX = b.bc * T + T/2;
+        let tileCenterY = b.br * T + T/2;
+        let distanceToCenter = Math.hypot(pCenterX - tileCenterX, pCenterY - tileCenterY);
+        if(distanceToCenter < 19) continue;
+      }
+    }
+  }
+  return true;
+}
+
+function update(dt){
+  if(state !== "play") return;
+  if(player.inv > 0) player.inv -= dt;
+
+  // Clean up dead squad members and respawn reinforcements over time
+  allies = allies.filter(a => a.alive);
+  if(allies.length < 2){
+    reinforceTimer += dt;
+    if(reinforceTimer > 3.0){
+      reinforceTimer = 0;
+      allies.push({
+        x: T * 2 + 10,
+        y: (Math.floor(ROWS/2)) * T + 6,
+        w: 28, h: 28,
+        speed: 150,
+        vx: 40, vy: 40,
+        patrolTimer: 0,
+        shootTimer: 0,
+        alive: true
+      });
+      createParticles(T * 2 + 20, (Math.floor(ROWS/2)) * T + 20, "#4ade80", 12);
+    }
+  }
+
+  planeTimer += dt;
+  if(planeTimer > 7.0){
+    planeTimer = 0;
+    let targetCol = Math.floor(Math.random() * (COLS - 6)) + 3;
+    planes.push({
+      x: -120,
+      y: 35 + Math.random() * 100,
+      vx: 300,
+      targetCol: targetCol,
+      dropped: false,
+      isBomber: Math.random() < 0.6
+    });
+  }
+
+  planes.forEach(p => {
+    p.x += p.vx * dt;
+    if(p.isBomber && !p.dropped && p.x >= p.targetCol * T){
+      p.dropped = true;
+      projectiles.push({
+        x: p.targetCol * T + T/2,
+        y: p.y,
+        vx: 0,
+        vy: 220,
+        isPlaneBomb: true
+      });
+    }
+  });
+  planes = planes.filter(p => p.x < W + 150);
+
+  projectiles.forEach(pr => {
+    pr.x += pr.vx * dt;
+    pr.y += pr.vy * dt;
+
+    if(rectHit(player, {x: pr.x - 4, y: pr.y - 4, w: 8, h: 8}) && player.alive){
+      pr.exploded = true;
+      bloodStains.push({x: pr.x, y: pr.y, radius: 12});
+      playerHurt();
+    }
+
+    // Allies can also be shot and killed by incoming enemy projectiles!
+    allies.forEach(a => {
+      if(a.alive && rectHit(a, {x: pr.x - 4, y: pr.y - 4, w: 8, h: 8})){
+        pr.exploded = true;
+        a.alive = false;
+        createParticles(a.x + 14, a.y + 14, "#dc2626", 16);
+        bloodStains.push({x: a.x + 14, y: a.y + 14, radius: 15});
+        deadBodies.push({x: a.x, y: a.y, isTank: false, isAlly: true, angle: Math.random() * Math.PI});
+      }
+    });
+
+    if(pr.isPlaneBomb){
+      let r = Math.floor(pr.y / T);
+      let c = Math.floor(pr.x / T);
+      if(r >= ROWS - 1 || (grid[r] && grid[r][c] === 1)){
+        pr.exploded = true;
+        explosions.push({r: r, c: c, timer: 0.5, maxTimer: 0.5});
+        createParticles(pr.x, pr.y, "#f59e0b", 12);
+        createSmoke(pr.x, pr.y, 5);
+        bloodStains.push({x: pr.x, y: pr.y, radius: 14});
+      }
+    }
+  });
+  projectiles = projectiles.filter(pr => !pr.exploded && pr.x >= 0 && pr.x <= W && pr.y >= 0 && pr.y <= H);
+
+  let targetVx = 0, targetVy = 0;
+  if(keys["a"] || keys["h"] || keys["arrowleft"]) targetVx = -1;
+  if(keys["d"] || keys["l"] || keys["arrowright"]) targetVx = 1;
+  if(keys["w"] || keys["k"] || keys["arrowup"]) targetVy = -1;
+  if(keys["s"] || keys["j"] || keys["arrowdown"]) targetVy = 1;
+
+  if(stickData.active){
+    targetVx = stickData.x;
+    targetVy = stickData.y;
+  }
+
+  let moveMag = Math.hypot(targetVx, targetVy);
+  if(moveMag > 0){
+    if(stickData.active){
+      player.vx = targetVx * player.speed;
+      player.vy = targetVy * player.speed;
+    } else {
+      if(moveMag > 1) { targetVx /= moveMag; targetVy /= moveMag; }
+      player.vx = targetVx * player.speed;
+      player.vy = targetVy * player.speed;
+    }
+  } else {
+    player.vx *= 0.65;
+    player.vy *= 0.65;
+  }
+
+  if(Math.abs(player.vx) > 0.2 || Math.abs(player.vy) > 0.2){
+    let nextX = player.x + player.vx * dt;
+    if(canMoveTo(nextX, player.y, player.w, player.h)){
+      player.x = nextX;
+    } else {
+      player.vx = 0;
+    }
+
+    let nextY = player.y + player.vy * dt;
+    if(canMoveTo(player.x, nextY, player.w, player.h)){
+      player.y = nextY;
+    } else {
+      player.vy = 0;
+    }
+  }
+
+  // Active Wandering, Patrolling, and Combat AI for Squad Allies
+  allies.forEach((a, index) => {
+    let closestEnemy = null;
+    let minDist = 9999;
+    enemies.forEach(e => {
+      if(!e.alive) return;
+      let d = Math.hypot(e.x - a.x, e.y - a.y);
+      if(d < minDist){ minDist = d; closestEnemy = e; }
+    });
+
+    let distToPlayer = Math.hypot(player.x - a.x, player.y - a.y);
+    if(distToPlayer > 260){
+      a.x = player.x - 30 - (index * 15);
+      a.y = player.y + (index % 2 === 0 ? -20 : 20);
+    }
+
+    if(closestEnemy && minDist < 180){
+      // Engage enemies actively
+      let angle = Math.atan2(closestEnemy.y - a.y, closestEnemy.x - a.x);
+      a.vx = Math.cos(angle) * a.speed;
+      a.vy = Math.sin(angle) * a.speed;
+    } else {
+      // Roam, patrol, and scout forward dynamically when no enemies are immediate
+      a.patrolTimer += dt;
+      if(a.patrolTimer > 3.5){
+        a.patrolTimer = 0;
+        a.vx = (Math.random() < 0.5 ? 1 : -1) * (a.speed * 0.7);
+        a.vy = (Math.random() < 0.5 ? 1 : -1) * (a.speed * 0.7);
+      }
+      // Gentle pull towards player to stay grouped together
+      let targetX = player.x - 40 - (index * 20);
+      let targetY = player.y + (index % 2 === 0 ? -18 : 18);
+      let distToTarget = Math.hypot(targetX - a.x, targetY - a.y);
+      if(distToTarget > 60){
+        let angle = Math.atan2(targetY - a.y, targetX - a.x);
+        a.vx = Math.cos(angle) * a.speed;
+        a.vy = Math.sin(angle) * a.speed;
+      }
+    }
+
+    let nx = a.x + a.vx * dt;
+    if(!canMoveTo(nx, a.y, a.w, a.h)){
+      a.vx *= -1;
+      nx = a.x;
+    }
+    a.x = nx;
+
+    let ny = a.y + a.vy * dt;
+    if(!canMoveTo(a.x, ny, a.w, a.h)){
+      a.vy *= -1;
+      ny = a.y;
+    }
+    a.y = ny;
+
+    a.shootTimer += dt;
+    if(a.shootTimer > 1.4 && closestEnemy && minDist < 160){
+      a.shootTimer = 0;
+      closestEnemy.alive = false;
+      score += 150;
+      createParticles(closestEnemy.x + 16, closestEnemy.y + 16, "#4ade80", 12);
+      createSmoke(closestEnemy.x + 16, closestEnemy.y + 16, 2);
+      bloodStains.push({x: closestEnemy.x + 16, y: closestEnemy.y + 16, radius: 15});
+      deadBodies.push({x: closestEnemy.x, y: closestEnemy.y, isTank: closestEnemy.isTank, isAlly: false, angle: Math.random() * Math.PI});
+    }
+  });
+
+  bombs.forEach(b => {
+    b.timer -= dt;
+    if(b.timer <= 0 && !b.exploded) explodeBomb(b);
+  });
+  bombs = bombs.filter(b => !b.exploded);
+
+  explosions.forEach(e => e.timer -= dt);
+  explosions = explosions.filter(e => e.timer > 0);
+
+  particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; });
+  particles = particles.filter(p => p.life > 0);
+
+  smokeParticles.forEach(s => {
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    s.life -= dt;
+    s.radius += dt * 8;
+  });
+  smokeParticles = smokeParticles.filter(s => s.life > 0);
+
+  if(levelKey && levelKey.revealed && !levelKey.collected){
+    if(rectHit(player, {x: levelKey.x, y: levelKey.y, w: levelKey.w, h: levelKey.h})){
+      levelKey.collected = true;
+      player.hasKey = true;
+      score += 600;
+      createParticles(levelKey.x + 12, levelKey.y + 12, "#4ade80", 20);
+      updateHud();
+    }
+  }
+
+  powerups.forEach((p, idx) => {
+    if(rectHit(player, {x: p.x, y: p.y, w: p.w, h: p.h})){
+      if(p.type === "bomb") player.maxBombs = Math.min(8, player.maxBombs + 1);
+      if(p.type === "fire") player.firePower = Math.min(6, player.firePower + 1);
+      if(p.type === "speed") player.speed = Math.min(270, player.speed + 15);
+      score += 150;
+      createParticles(p.x + 12, p.y + 12, "#15803d", 12);
+      powerups.splice(idx, 1);
+      updateHud();
+    }
+  });
+
+  if(exitDoor && player.hasKey){
+    let dcx = exitDoor.c * T + T/2, dcy = exitDoor.r * T + T/2;
+    if(Math.hypot((player.x + player.w/2) - dcx, (player.y + player.h/2) - dcy) < 32){
+      level++;
+      score += 1500;
+      showScreen("CASTLE FORTRESS SECURED!", `Advancing to Sector ${level}<br><br><button onclick='nextStage()'>CONTINUE ASSAULT</button>`);
+      state = "transition";
+    }
+  }
+
+  enemies.forEach(e => {
+    if(!e.alive) return;
+    
+    e.shootCooldown += dt;
+    if(e.shootCooldown > 3.0){
+      e.shootCooldown = 0;
+      let angle = Math.atan2((player.y + player.h/2) - (e.y + e.h/2), (player.x + player.w/2) - (e.x + e.w/2));
+      projectiles.push({
+        x: e.x + e.w/2,
+        y: e.y + e.h/2,
+        vx: Math.cos(angle) * 200,
+        vy: Math.sin(angle) * 200,
+        isTankBullet: true
+      });
+    }
+
+    e.x += e.vx * dt;
+    if(!canMoveTo(e.x, e.y, e.w, e.h)){
+      e.x -= e.vx * dt;
+      e.vx *= -1;
+    }
+    e.y += e.vy * dt;
+    if(!canMoveTo(e.x, e.y, e.w, e.h)){
+      e.y -= e.vy * dt;
+      e.vy = (Math.random() < 0.5 ? 1 : -1) * e.speed;
+    } else if(Math.random() < 0.02){
+      e.vy = (Math.random() < 0.5 ? 1 : -1) * e.speed;
+    }
+
+    if(rectHit(player, e) && player.alive){
+      playerHurt();
+    }
+  });
+  enemies = enemies.filter(e => e.alive);
+}
+
+function nextStage(){
+  state = "play";
+  document.getElementById("screen").style.display = "none";
+  initLevel();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(!grid || !grid.length || !grid[0] || !Array.isArray(grid[0])) return;
+
+  const now = performance.now() * 0.001;
+
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const px=c*T, py=r*T, tile=grid[r][c];
+      const water=waterwayCols.includes(c), bridge=water && r===bridgeRow;
+      const castle=c>=COLS-4;
+
+      if(castle){
+        ctx.fillStyle="#555b62"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle="#40464c"; ctx.fillRect(px+1,py+1,T-2,T-2);
+        ctx.fillStyle="#6b7177";
+        for(let i=0;i<5;i++){
+          const xx=px+3+((i*11+r*7)%24), yy=py+4+((i*7+c*3)%21);
+          ctx.fillRect(xx,yy,4,2);
+        }
+        ctx.strokeStyle="#25292d"; ctx.lineWidth=1; ctx.strokeRect(px+.5,py+.5,T-1,T-1);
+      } else if(tile===1){
+        ctx.fillStyle="#2d3237"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle="#444a4f"; ctx.fillRect(px+2,py+2,T-4,T-4);
+        ctx.fillStyle="#565d62";
+        ctx.fillRect(px+4,py+4,8,3); ctx.fillRect(px+18,py+11,7,3);
+        ctx.fillRect(px+6,py+22,5,3); ctx.fillRect(px+21,py+25,5,2);
+        ctx.strokeStyle="#1b1f23"; ctx.strokeRect(px+1,py+1,T-2,T-2);
+      } else if(tile===2){
+        ctx.fillStyle="#76552c"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle="#8b6a39";
+        for(let i=0;i<18;i++){
+          const sx=px+(i*17+r*5)%T, sy=py+(i*11+c*3)%T;
+          ctx.fillRect(sx,sy,2,1);
+        }
+        ctx.strokeStyle="#172026"; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.moveTo(px+1,py+T-3); ctx.lineTo(px+T-1,py+3); ctx.moveTo(px+1,py+3); ctx.lineTo(px+T-1,py+T-3); ctx.stroke();
+        ctx.strokeStyle="#b7c0c5"; ctx.lineWidth=1.5;
+        ctx.beginPath();
+        ctx.moveTo(px+1,py+T-5); ctx.lineTo(px+T-1,py+5);
+        ctx.moveTo(px+1,py+5); ctx.lineTo(px+T-1,py+T-5);
+        ctx.stroke();
+        ctx.strokeStyle="#6d777d"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(px,py+T*.5); ctx.quadraticCurveTo(px+T*.5,py+2,px+T,py+T*.5); ctx.stroke();
+        for(const [bx,by,a] of [[7,8,-.7],[21,7,.4],[8,22,.5],[22,21,-.5]]){
+          ctx.save(); ctx.translate(px+bx,py+by); ctx.rotate(a);
+          ctx.strokeStyle="#d5dadd"; ctx.lineWidth=1.5;
+          ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(4,0); ctx.moveTo(0,-4); ctx.lineTo(0,4); ctx.stroke();
+          ctx.fillStyle="#eef2f4";
+          for(const q of [[-4,0],[4,0],[0,-4],[0,4]]){
+            ctx.beginPath(); ctx.moveTo(q[0],q[1]); ctx.lineTo(q[0]+(q[0]===0?2:Math.sign(q[0])*2),q[1]+(q[1]===0?2:Math.sign(q[1])*2)); ctx.lineTo(q[0],q[1]+(q[1]===0?0:Math.sign(q[1])*2)); ctx.fill();
+          }
+          ctx.restore();
+        }
+      } else if(water && !bridge){
+        ctx.fillStyle="#124b78"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle="#1c6e9f"; ctx.fillRect(px,py+1,T,5);
+        ctx.strokeStyle="rgba(120,210,245,.55)"; ctx.lineWidth=1;
+        const off=(now*12+(r*9+c*5))%T;
+        for(let k=0;k<3;k++){
+          const yy=py+7+k*9;
+          ctx.beginPath(); ctx.moveTo(px-2+off*.15,yy);
+          ctx.quadraticCurveTo(px+8,yy-2,px+15,yy);
+          ctx.quadraticCurveTo(px+22,yy+2,px+T+2,yy);
+          ctx.stroke();
+        }
+        ctx.fillStyle="rgba(220,245,255,.55)";
+        ctx.fillRect(px+4,(py+13+(r*3+c*5)%11),6,1);
+      } else if(bridge){
+        ctx.fillStyle="#124b78"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle="#6e4424"; ctx.fillRect(px,py+3,T,T-6);
+        for(let i=0;i<4;i++){
+          const yy=py+4+i*6;
+          ctx.fillStyle=i%2?"#8d5a2e":"#704321"; ctx.fillRect(px+2,yy,T-4,5);
+          ctx.strokeStyle="#3c2414"; ctx.strokeRect(px+2,yy,T-4,5);
+        }
+        ctx.fillStyle="#3a2a1d";
+        ctx.fillRect(px+3,py+2,3,T-4); ctx.fillRect(px+T-6,py+2,3,T-4);
+        ctx.fillStyle="#a97842"; ctx.fillRect(px+7,py+5,2,3); ctx.fillRect(px+20,py+14,2,3);
+      } else {
+        const beach=c<6;
+        ctx.fillStyle=beach?"#b99455":"#587a3e"; ctx.fillRect(px,py,T,T);
+        ctx.fillStyle=beach?"#c8aa70":"#678b49";
+        for(let i=0;i<12;i++){
+          const xx=px+(i*13+r*3+c*7)%T, yy=py+(i*7+r*11+c*2)%T;
+          ctx.fillRect(xx,yy,1+(i%2),1);
+        }
+        if(!beach){
+          ctx.strokeStyle="#426332"; ctx.lineWidth=1;
+          for(let i=0;i<3;i++){
+            const xx=px+5+i*9+(r%3);
+            ctx.beginPath(); ctx.moveTo(xx,py+T-3); ctx.lineTo(xx+1,py+T-7-(i%2)*2); ctx.stroke();
+          }
+        }
+        ctx.strokeStyle="rgba(60,45,25,.18)"; ctx.strokeRect(px,py,T,T);
+      }
+    }
+  }
+
+  if(highDetail) for(let r=1;r<ROWS-1;r++){
+    for(let c=6;c<COLS-4;c++){
+      if(grid[r][c]!==0 || waterwayCols.includes(c)) continue;
+      if(((r*37+c*71)%19)!==0) continue;
+      const x=c*T+T*.5, y=r*T+T*.52;
+      ctx.fillStyle="#3b2b1c"; ctx.fillRect(x-2,y+5,4,9);
+      ctx.fillStyle="#203f24"; ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#315a2d"; ctx.beginPath(); ctx.arc(x-4,y-3,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#476f36"; ctx.beginPath(); ctx.arc(x+4,y-2,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#66854a"; ctx.fillRect(x-1,y-7,3,3);
+    }
+  }
+
+  bloodStains.forEach(b=>{
+    ctx.fillStyle="rgba(105,18,16,.52)"; ctx.beginPath(); ctx.ellipse(b.x,b.y,b.radius,b.radius*.55,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="rgba(65,10,10,.35)"; ctx.beginPath(); ctx.arc(b.x+4,b.y-2,b.radius*.45,0,Math.PI*2); ctx.fill();
+  });
+
+  deadBodies.forEach(db=>{
+    ctx.save(); ctx.translate(db.x+14,db.y+14); ctx.rotate(db.angle||0);
+    ctx.fillStyle=db.isAlly?"#244d2d":"#30343a"; ctx.fillRect(-9,-6,18,12);
+    ctx.fillStyle="#1a1d20"; ctx.fillRect(-13,-4,6,4); ctx.fillRect(-13,2,6,4);
+    ctx.fillRect(7,-5,6,4); ctx.fillRect(7,2,6,4);
+    ctx.fillStyle="#c69c72"; ctx.beginPath(); ctx.arc(11,0,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#566548"; ctx.beginPath(); ctx.arc(10,-2,6,Math.PI,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  const boatX=8, boatY=(Math.floor(ROWS/2)-1.55)*T;
+  ctx.save(); ctx.translate(boatX,boatY);
+  ctx.fillStyle="#18252b"; ctx.beginPath(); ctx.moveTo(0,5); ctx.lineTo(44,5); ctx.lineTo(62,T*3-10); ctx.lineTo(48,T*3); ctx.lineTo(8,T*3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#59666a"; ctx.beginPath(); ctx.moveTo(5,9); ctx.lineTo(41,9); ctx.lineTo(54,T*3-14); ctx.lineTo(46,T*3-5); ctx.lineTo(11,T*3-5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#27363b"; ctx.fillRect(10,12,34,T*3-25);
+  ctx.fillStyle="#6e7b7d"; ctx.fillRect(13,15,27,4);
+  ctx.fillStyle="#151b1e"; ctx.fillRect(39,20,7,T*3-35);
+  ctx.fillStyle="#bd9b52"; ctx.fillRect(44,T*3-19,13,12);
+  ctx.fillStyle="#bfc6c5"; ctx.fillRect(47,T*3-16,9,8);
+  ctx.restore();
+
+  if(levelKey && levelKey.revealed && !levelKey.collected){
+    const bob=Math.sin(now*4)*2;
+    ctx.fillStyle="#1c2730"; ctx.fillRect(levelKey.x,levelKey.y+bob,levelKey.w,levelKey.h);
+    ctx.strokeStyle="#70e08b"; ctx.lineWidth=2; ctx.strokeRect(levelKey.x,levelKey.y+bob,levelKey.w,levelKey.h);
+    ctx.fillStyle="#c7d3d7"; ctx.fillRect(levelKey.x+4,levelKey.y+5+bob,16,14);
+    ctx.fillStyle="#3c5960"; ctx.fillRect(levelKey.x+7,levelKey.y+8+bob,10,1); ctx.fillRect(levelKey.x+7,levelKey.y+12+bob,8,1);
+  }
+
+  if(exitDoor){
+    const dx=exitDoor.c*T, dy=exitDoor.r*T;
+    ctx.fillStyle="#252a2e"; ctx.fillRect(dx-18,dy-8,T+18,T+16);
+    ctx.fillStyle="#555b5e"; ctx.fillRect(dx-15,dy-5,T+12,T+10);
+    for(let i=0;i<3;i++){
+      ctx.fillStyle="#73797b"; ctx.fillRect(dx-11+i*14,dy-2,10,4);
+    }
+    ctx.fillStyle=player.hasKey?"#286c48":"#6b2020"; ctx.fillRect(dx+5,dy-2,20,T+4);
+    ctx.fillStyle="#111719"; ctx.fillRect(dx+8,dy+2,14,T-4);
+    ctx.fillStyle="#9c8b53"; ctx.fillRect(dx+T-2,dy-4,3,4); ctx.fillRect(dx+T-2,dy+T,3,4);
+    ctx.fillStyle="#353a3d"; ctx.fillRect(dx-12,dy-23,17,15);
+    ctx.fillStyle="#707578"; ctx.fillRect(dx-14,dy-25,21,4);
+    ctx.fillStyle="#171b1d"; ctx.fillRect(dx-7,dy-20,7,6);
+    for(let i=0;i<4;i++){ ctx.fillStyle="#9a865f"; ctx.beginPath(); ctx.ellipse(dx-13+i*8,dy+18,6,3,0,0,Math.PI*2); ctx.fill(); }
+  }
+
+  powerups.forEach(p=>{
+    const pulse=1+Math.sin(now*5+p.x)*.08;
+    ctx.save(); ctx.translate(p.x+12,p.y+12); ctx.scale(pulse,pulse);
+    ctx.fillStyle="#172129"; ctx.fillRect(-12,-12,24,24);
+    ctx.strokeStyle="#7ddf93"; ctx.strokeRect(-11,-11,22,22);
+    ctx.fillStyle="#dbe8e8"; ctx.font="bold 13px monospace";
+    ctx.fillText(p.type==="bomb"?"D":p.type==="fire"?"F":"S",-5,5);
+    ctx.restore();
+  });
+
+  bombs.forEach(b => {
+    const pulse = Math.sin(now * 16) * 1.8;
+    ctx.save();
+    ctx.translate(b.x + 14, b.y + 14);
+
+    ctx.fillStyle = "#b91c1c";
+    ctx.fillRect(-8, -6, 16, 6);
+    ctx.fillStyle = "#991b1b";
+    ctx.fillRect(-8, 0, 16, 6);
+    ctx.fillStyle = "#7f1d1d";
+    ctx.fillRect(-6, 6, 12, 5);
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(-3, -7, 6, 19);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 6px monospace";
+    ctx.fillText("TNT", -4, 2);
+
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(2, -6);
+    ctx.quadraticCurveTo(8, -12, 10, -15);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fef08a";
+    ctx.beginPath();
+    ctx.arc(10 + pulse * 0.2, -15 + pulse * 0.2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f97316";
+    ctx.beginPath();
+    ctx.arc(10, -15, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  });
+
+  explosions.forEach(e=>{
+    const ex=e.c*T+T/2, ey=e.r*T+T/2, p=1-e.timer/e.maxTimer;
+    ctx.save(); ctx.translate(ex,ey); ctx.scale(1+p*.7,1+p*.7);
+    ctx.fillStyle="rgba(255,210,60,.35)"; ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#ef6a20"; ctx.beginPath();
+    for(let i=0;i<12;i++){ const a=i*Math.PI/6, rr=i%2?8:16; ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr); } ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#ffe36e"; ctx.beginPath(); ctx.arc(0,0,7,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  smokeParticles.forEach(s=>{
+    ctx.globalAlpha=Math.max(0,s.life/s.maxLife)*.5;
+    ctx.fillStyle="#3d464a"; ctx.beginPath(); ctx.arc(s.x,s.y,s.radius,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  });
+
+  particles.forEach(p=>{
+    ctx.globalAlpha=Math.max(0,p.life*2); ctx.fillStyle=p.col;
+    ctx.fillRect(p.x,p.y,3,3); ctx.globalAlpha=1;
+  });
+
+  projectiles.forEach(pr=>{
+    const ang=Math.atan2(pr.vy,pr.vx), len=pr.isPlaneBomb?12:11;
+    ctx.save(); ctx.translate(pr.x,pr.y); ctx.rotate(ang);
+    ctx.strokeStyle=pr.isTankBullet?"#ffe06a":"#fff3b0"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-len,0); ctx.lineTo(3,0); ctx.stroke();
+    ctx.fillStyle=pr.isTankBullet?"#e3a82d":"#d7d7c8"; ctx.fillRect(0,-2,6,4);
+    ctx.restore();
+  });
+
+  planes.forEach(p=>{
+    ctx.save(); ctx.translate(p.x,p.y);
+    ctx.fillStyle="#2c3b36"; ctx.fillRect(4,5,38,8);
+    ctx.fillStyle="#56665b"; ctx.fillRect(15,-7,15,31);
+    ctx.fillStyle="#1b2522"; ctx.fillRect(28,2,14,4);
+    ctx.fillStyle="#7a897a"; ctx.fillRect(11,7,7,4);
+    ctx.strokeStyle="#aeb8a8"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(3,9,7,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  });
+
+  function drawSoldier(o, ally){
+    const x=o.x,y=o.y;
+    ctx.save(); ctx.translate(x+14,y+14);
+    ctx.fillStyle=ally?"#294f31":"#36383b"; ctx.fillRect(-7,-4,14,11);
+    ctx.fillStyle=ally?"#527c43":"#55585a"; ctx.fillRect(-5,-7,10,5);
+    ctx.fillStyle="#b98563"; ctx.beginPath(); ctx.arc(0,-9,5.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=ally?"#315331":"#4b4e4d"; ctx.beginPath(); ctx.arc(0,-10,6.5,Math.PI,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#161b1d"; ctx.fillRect(-11,-2,6,3); ctx.fillRect(5,-2,7,3);
+    ctx.fillRect(-6,7,4,7); ctx.fillRect(2,7,4,7);
+    ctx.fillStyle="#202729"; ctx.fillRect(5,-1,13,2);
+    ctx.restore();
+  }
+
+  allies.forEach(a=>{if(a.alive) drawSoldier(a,true);});
+
+  enemies.forEach(e=>{
+    if(!e.alive) return;
+    const ex=e.x,ey=e.y;
+    if(e.isTank){
+      const ang=Math.atan2((player.y+14)-(ey+16),(player.x+14)-(ex+16));
+      ctx.save(); ctx.translate(ex+16,ey+16);
+      ctx.fillStyle="#26352f"; ctx.fillRect(-15,-11,30,22);
+      ctx.fillStyle="#4c5c4e"; ctx.fillRect(-11,-9,22,18);
+      ctx.fillStyle="#64715f"; ctx.fillRect(-7,-6,14,12);
+      ctx.fillStyle="#1a2320"; ctx.fillRect(-18,-14,6,28); ctx.fillRect(12,-14,6,28);
+      ctx.fillStyle="#26352f"; ctx.beginPath(); ctx.arc(0,0,7,0,Math.PI*2); ctx.fill();
+      ctx.rotate(ang); ctx.fillStyle="#1b211f"; ctx.fillRect(3,-2,19,4);
+      ctx.fillStyle="#78877a"; ctx.fillRect(7,-1,10,2);
+      ctx.restore();
+    } else {
+      drawSoldier(e,false);
+    }
+  });
+
+  if(player.alive && (player.inv<=0 || Math.floor(player.inv*14)%2===0)) drawSoldier(player,true);
+}
+
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(.033, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
