@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Murphy StJohn Fights !</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Compact touch controls scaled down to fit nicely on screen */
+        #touch-controls {
+            transform: scale(0.95);
+            transform-origin: bottom center;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            padding: 0 10px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .control-group {
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .control-label {
+            color: rgba(255, 255, 255, 0.85);
+            font-family: monospace;
+            font-size: 10px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            letter-spacing: 0.5px;
+        }
+
+        /* Virtual Joystick Base Container wrapper with WASD markers */
+        .joystick-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wasd-marker {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 11px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+            pointer-events: none;
+        }
+
+        #marker-w { top: 2px; left: 50%; transform: translateX(-50%); }
+        #marker-a { left: 4px; top: 50%; transform: translateY(-50%); }
+        #marker-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+        #marker-d { right: 4px; top: 50%; transform: translateY(-50%); }
+
+        /* Virtual Joystick Base Container */
+        #virtual-joystick-base {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            touch-action: none;
+            pointer-events: auto;
+        }
+
+        /* Virtual Joystick Floating Thumbstick Knob */
+        #virtual-joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            margin-top: -25px;
+            margin-left: -25px;
+            border-radius: 50%;
+            background: rgba(255, 85, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 12px rgba(255, 85, 0, 0.6);
+            pointer-events: none;
+            transition: transform 0.05s linear;
+        }
+
+        #virtual-joystick-knob.active {
+            background: rgba(255, 85, 0, 0.95);
+            border-color: #ffffff;
+        }
+
+        .action-pad {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            max-width: 280px;
+            justify-content: flex-end;
+        }
+
+        .action-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .touch-btn {
+            min-width: 52px;
+            min-height: 52px;
+            font-size: 14px;
+            font-family: monospace;
+            font-weight: bold;
+            background: rgba(40, 40, 40, 0.75);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .touch-btn:active {
+            background: rgba(255, 85, 0, 0.9);
+            border-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        
+        <!-- Retro Arcade Title Screen Overlay -->
+        <div id="title-screen">
+            <div class="title-content">
+                <h1 class="game-title">MURPHY STJOHN<br><span>FIGHTS !</span></h1>
+                <p class="title-subtitle">PRESS ANY KEY OR TAP TO PLAY</p>
+                <button id="btn-start-game" class="arcade-btn">START GAME</button>
+            </div>
+        </div>
+
+        <!-- Top Center Pause Button -->
+        <div id="top-hud-controls">
+            <div class="action-wrapper">
+                <button id="btn-pause" class="touch-btn" data-action="pause">P</button>
+                <span class="control-label">PAUSE</span>
+            </div>
+        </div>
+
+        <!-- On-Screen Touch Controls Overlay with Virtual Joystick & WASD surrounding it -->
+        <div id="touch-controls">
+            <!-- Left Side: Virtual Joystick with WASD labels around it -->
+            <div class="control-group">
+                <div class="joystick-container">
+                    <span id="marker-w" class="wasd-marker">W</span>
+                    <span id="marker-a" class="wasd-marker">A</span>
+                    <span id="marker-s" class="wasd-marker">S</span>
+                    <span id="marker-d" class="wasd-marker">D</span>
+                    <div id="virtual-joystick-base">
+                        <div id="virtual-joystick-knob"></div>
+                    </div>
+                </div>
+                <span class="control-label">JOYSTICK</span>
+            </div>
+            
+            <!-- Right Side: Ergonomic Action Pad -->
+            <div class="control-group action-pad">
+                <div class="action-wrapper">
+                    <button id="btn-punch" class="touch-btn" data-action="punch">J</button>
+                    <span class="control-label">PUNCH</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-kick" class="touch-btn" data-action="kick">K</button>
+                    <span class="control-label">KICK</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-jump" class="touch-btn" data-action="jump">SPC</button>
+                    <span class="control-label">JUMP</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-pickup" class="touch-btn" data-action="pickup">I</button>
+                    <span class="control-label">PICKUP</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-block" class="touch-btn" data-action="block">O</button>
+                    <span class="control-label">BLOCK</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="config.js"></script>
+    <script src="input.js"></script>
+    <script src="input_ui.js"></script>
+    <script src="environment.js"></script>
+    <script src="hud.js"></script>
+    <script src="fighter.js"></script>
+	<script src="car_and_npc_expansion.js"></script>
+	<script src="audio.js"></script>
+    <script src="main.js"></script>
+
+    <!-- Universal Virtual Joystick & Touch Interceptor Engine -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const base = document.getElementById('virtual-joystick-base');
+            const knob = document.getElementById('virtual-joystick-knob');
+            
+            if (!base || !knob) return;
+
+            let activeTouchId = null;
+            const maxRadius = 38;
+
+            function updateJoystick(clientX, clientY) {
+                const rect = base.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let deltaX = clientX - centerX;
+                let deltaY = clientY - centerY;
+                const distance = Math.hypot(deltaX, deltaY);
+
+                if (distance > maxRadius) {
+                    deltaX = (deltaX / distance) * maxRadius;
+                    deltaY = (deltaY / distance) * maxRadius;
+                }
+
+                knob.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                knob.classList.add('active');
+
+                const normX = deltaX / maxRadius;
+                const normY = deltaY / maxRadius;
+                const deadzone = 0.15;
+
+                if (typeof Input !== 'undefined') {
+                    Input.setVirtualButton('left', normX < -deadzone);
+                    Input.setVirtualButton('right', normX > deadzone);
+                    Input.setVirtualButton('up', normY < -deadzone);
+                    Input.setVirtualButton('down', normY > deadzone);
+                }
+            }
+
+            function resetJoystick() {
+                activeTouchId = null;
+                knob.style.transform = `translate(0px, 0px)`;
+                knob.classList.remove('active');
+
+                if (typeof Input !== 'undefined') {
+                    Input.setVirtualButton('left', false);
+                    Input.setVirtualButton('right', false);
+                    Input.setVirtualButton('up', false);
+                    Input.setVirtualButton('down', false);
+                }
+            }
+
+            base.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                if (activeTouchId === null) {
+                    activeTouchId = touch.identifier;
+                    updateJoystick(touch.clientX, touch.clientY);
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchmove', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier === activeTouchId) {
+                        e.preventDefault();
+                        updateJoystick(touch.clientX, touch.clientY);
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        e.preventDefault();
+                        resetJoystick();
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchcancel', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        resetJoystick();
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            // Mouse fallback for testing on desktop browsers
+            let isMouseDown = false;
+            base.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                updateJoystick(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+                updateJoystick(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', () => {
+                if (!isMouseDown) return;
+                isMouseDown = false;
+                resetJoystick();
+            });
+        });
+    </script>
+</body>
+</html>
