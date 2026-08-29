@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Murphy StJohn Fights !</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Compact touch controls scaled down to fit nicely on screen */
+        #touch-controls {
+            transform: scale(0.95);
+            transform-origin: bottom center;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            padding: 0 10px;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .control-group {
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .control-label {
+            color: rgba(255, 255, 255, 0.85);
+            font-family: monospace;
+            font-size: 10px;
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            letter-spacing: 0.5px;
+        }
+
+        /* Virtual Joystick Base Container wrapper with WASD markers */
+        .joystick-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wasd-marker {
+            position: absolute;
+            color: rgba(255, 255, 255, 0.8);
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 11px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+            pointer-events: none;
+        }
+
+        #marker-w { top: 2px; left: 50%; transform: translateX(-50%); }
+        #marker-a { left: 4px; top: 50%; transform: translateY(-50%); }
+        #marker-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+        #marker-d { right: 4px; top: 50%; transform: translateY(-50%); }
+
+        /* Virtual Joystick Base Container */
+        #virtual-joystick-base {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            touch-action: none;
+            pointer-events: auto;
+        }
+
+        /* Virtual Joystick Floating Thumbstick Knob */
+        #virtual-joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            margin-top: -25px;
+            margin-left: -25px;
+            border-radius: 50%;
+            background: rgba(255, 85, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 12px rgba(255, 85, 0, 0.6);
+            pointer-events: none;
+            transition: transform 0.05s linear;
+        }
+
+        #virtual-joystick-knob.active {
+            background: rgba(255, 85, 0, 0.95);
+            border-color: #ffffff;
+        }
+
+        .action-pad {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            max-width: 280px;
+            justify-content: flex-end;
+        }
+
+        .action-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .touch-btn {
+            min-width: 52px;
+            min-height: 52px;
+            font-size: 14px;
+            font-family: monospace;
+            font-weight: bold;
+            background: rgba(40, 40, 40, 0.75);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .touch-btn:active {
+            background: rgba(255, 85, 0, 0.9);
+            border-color: #ffffff;
+        }
+
+        #btn-game-select {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            z-index: 100;
+            padding: 7px 10px;
+            border: 2px solid rgba(255,255,255,0.55);
+            border-radius: 6px;
+            background: rgba(30,30,30,0.86);
+            color: #fff;
+            font: bold 11px monospace;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.65);
+        }
+        #btn-game-select:active {
+            transform: scale(0.95);
+            background: rgba(255,85,0,0.9);
+        }
+
+    
+        /* Improved arcade HUD */
+        #game-container {
+            position: relative;
+        }
+
+        #top-hud-controls {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        #top-hud-controls .action-wrapper {
+            pointer-events: auto;
+            padding: 4px 7px;
+            border-radius: 8px;
+            background: linear-gradient(180deg, rgba(20,20,20,.90), rgba(8,8,8,.78));
+            border: 1px solid rgba(255,255,255,.18);
+            box-shadow:
+                0 3px 10px rgba(0,0,0,.65),
+                inset 0 1px 0 rgba(255,255,255,.08);
+        }
+
+        #btn-pause {
+            min-width: 38px;
+            min-height: 34px;
+            padding: 4px 9px;
+            font-size: 13px;
+            border-radius: 6px;
+            background: linear-gradient(180deg, #444, #202020);
+            border: 1px solid #777;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
+        }
+
+        #top-hud-controls .control-label {
+            font-size: 8px;
+            margin-top: 1px;
+            opacity: .72;
+        }
+
+        /* Common HUD containers generated by hud.js */
+        #hud,
+        .hud,
+        #game-hud,
+        .game-hud,
+        #hud-container,
+        .hud-container {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            top: 10px;
+            z-index: 80;
+            pointer-events: none;
+            box-sizing: border-box;
+            font-family: "Courier New", monospace;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000, 0 0 5px rgba(0,0,0,.9);
+        }
+
+        /* Give likely HUD panels a compact fighting-game look */
+        #hud > div,
+        .hud > div,
+        #game-hud > div,
+        .game-hud > div,
+        #hud-container > div,
+        .hud-container > div {
+            background: linear-gradient(180deg, rgba(22,22,22,.88), rgba(5,5,5,.74));
+            border: 1px solid rgba(255,255,255,.22);
+            border-radius: 7px;
+            padding: 6px 9px;
+            box-shadow:
+                0 3px 10px rgba(0,0,0,.55),
+                inset 0 1px 0 rgba(255,255,255,.08);
+        }
+
+        /* Common health / energy / special bars */
+        .health-bar,
+        .hp-bar,
+        .energy-bar,
+        .stamina-bar,
+        .special-bar,
+        .meter,
+        [class*="health"][class*="bar"],
+        [class*="energy"][class*="bar"],
+        [class*="stamina"][class*="bar"] {
+            overflow: hidden;
+            border-radius: 5px;
+            border: 2px solid rgba(255,255,255,.7);
+            background: rgba(0,0,0,.78);
+            box-shadow: 0 2px 5px rgba(0,0,0,.7), inset 0 0 4px rgba(0,0,0,.85);
+        }
+
+        /* Common player/name/score text */
+        .player-name,
+        .fighter-name,
+        .score,
+        .round,
+        .timer,
+        [id*="score"],
+        [id*="round"],
+        [id*="timer"] {
+            font-family: "Courier New", monospace;
+            font-weight: 900;
+            letter-spacing: .6px;
+        }
+
+        /* Keep GAME SELECT clear of the HUD */
+        #btn-game-select {
+            top: 54px;
+            right: 12px;
+            background: linear-gradient(180deg, rgba(38,38,38,.94), rgba(14,14,14,.90));
+            border-color: rgba(255,120,45,.8);
+            box-shadow: 0 3px 9px rgba(0,0,0,.65);
+        }
+
+        @media (max-width: 700px) {
+            #top-hud-controls {
+                top: 6px;
+            }
+
+            #top-hud-controls .action-wrapper {
+                padding: 3px 5px;
+            }
+
+            #btn-pause {
+                min-width: 34px;
+                min-height: 30px;
+                font-size: 11px;
+            }
+
+            #hud,
+            .hud,
+            #game-hud,
+            .game-hud,
+            #hud-container,
+            .hud-container {
+                left: 6px;
+                right: 6px;
+                top: 6px;
+                font-size: 10px;
+            }
+
+            #hud > div,
+            .hud > div,
+            #game-hud > div,
+            .game-hud > div,
+            #hud-container > div,
+            .hud-container > div {
+                padding: 4px 6px;
+            }
+
+            #btn-game-select {
+                top: 45px;
+                right: 7px;
+                padding: 5px 7px;
+                font-size: 8px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        <button id="btn-game-select" type="button">← GAME SELECT</button>
+        
+        <!-- Retro Arcade Title Screen Overlay -->
+        <div id="title-screen">
+            <div class="title-content">
+                <h1 class="game-title">MURPHY STJOHN<br><span>FIGHTS !</span></h1>
+                <p class="title-subtitle">PRESS ANY KEY OR TAP TO PLAY</p>
+                <button id="btn-start-game" class="arcade-btn">START GAME</button>
+            </div>
+        </div>
+
+        <!-- Top Center Pause Button -->
+        <div id="top-hud-controls">
+            <div class="action-wrapper">
+                <button id="btn-pause" class="touch-btn" data-action="pause">P</button>
+                <span class="control-label">PAUSE</span>
+            </div>
+        </div>
+
+        <!-- On-Screen Touch Controls Overlay with Virtual Joystick & WASD surrounding it -->
+        <div id="touch-controls">
+            <!-- Left Side: Virtual Joystick with WASD labels around it -->
+            <div class="control-group">
+                <div class="joystick-container">
+                    <span id="marker-w" class="wasd-marker">W</span>
+                    <span id="marker-a" class="wasd-marker">A</span>
+                    <span id="marker-s" class="wasd-marker">S</span>
+                    <span id="marker-d" class="wasd-marker">D</span>
+                    <div id="virtual-joystick-base">
+                        <div id="virtual-joystick-knob"></div>
+                    </div>
+                </div>
+                <span class="control-label">JOYSTICK</span>
+            </div>
+            
+            <!-- Right Side: Ergonomic Action Pad -->
+            <div class="control-group action-pad">
+                <div class="action-wrapper">
+                    <button id="btn-punch" class="touch-btn" data-action="punch">J</button>
+                    <span class="control-label">PUNCH</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-kick" class="touch-btn" data-action="kick">K</button>
+                    <span class="control-label">KICK</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-jump" class="touch-btn" data-action="jump">SPC</button>
+                    <span class="control-label">JUMP</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-pickup" class="touch-btn" data-action="pickup">I</button>
+                    <span class="control-label">PICKUP</span>
+                </div>
+                <div class="action-wrapper">
+                    <button id="btn-block" class="touch-btn" data-action="block">O</button>
+                    <span class="control-label">BLOCK</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            let leavingGame = false;
+            let selectWasDown = false;
+
+            function goToGameSelection() {
+                if (leavingGame) return;
+                leavingGame = true;
+                const gameSelectURL = '../index.html';
+                try {
+                    window.top.location.href = gameSelectURL;
+                } catch (_) {
+                    window.location.href = gameSelectURL;
+                }
+            }
+
+            window.goToGameSelection = goToGameSelection;
+
+            window.addEventListener('DOMContentLoaded', () => {
+                const btn = document.getElementById('btn-game-select');
+                if (btn) {
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToGameSelection();
+                    });
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape' || e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    goToGameSelection();
+                }
+            }, true);
+
+            function watchGamepadSelect() {
+                const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+                let down = false;
+                for (const gp of pads) {
+                    if (gp && gp.buttons[8] && gp.buttons[8].pressed) {
+                        down = true;
+                        break;
+                    }
+                }
+                if (down && !selectWasDown) goToGameSelection();
+                selectWasDown = down;
+                if (!leavingGame) requestAnimationFrame(watchGamepadSelect);
+            }
+            requestAnimationFrame(watchGamepadSelect);
+        })();
+    </script>
+
+    <!-- Game Scripts -->
+    <script src="config.js"></script>
+    <script src="input.js"></script>
+    <script src="input_ui.js"></script>
+    <script src="environment.js"></script>
+    <script src="hud.js"></script>
+    <script src="fighter.js"></script>
+	<script src="car_and_npc_expansion.js"></script>
+	<script src="audio.js"></script>
+    <script src="main.js"></script>
+
+    <!-- Universal Virtual Joystick & Touch Interceptor Engine -->
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const base = document.getElementById('virtual-joystick-base');
+            const knob = document.getElementById('virtual-joystick-knob');
+            
+            if (!base || !knob) return;
+
+            let activeTouchId = null;
+            const maxRadius = 38;
+
+            function updateJoystick(clientX, clientY) {
+                const rect = base.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let deltaX = clientX - centerX;
+                let deltaY = clientY - centerY;
+                const distance = Math.hypot(deltaX, deltaY);
+
+                if (distance > maxRadius) {
+                    deltaX = (deltaX / distance) * maxRadius;
+                    deltaY = (deltaY / distance) * maxRadius;
+                }
+
+                knob.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                knob.classList.add('active');
+
+                const normX = deltaX / maxRadius;
+                const normY = deltaY / maxRadius;
+                const deadzone = 0.15;
+
+                if (typeof Input !== 'undefined') {
+                    Input.setVirtualButton('left', normX < -deadzone);
+                    Input.setVirtualButton('right', normX > deadzone);
+                    Input.setVirtualButton('up', normY < -deadzone);
+                    Input.setVirtualButton('down', normY > deadzone);
+                }
+            }
+
+            function resetJoystick() {
+                activeTouchId = null;
+                knob.style.transform = `translate(0px, 0px)`;
+                knob.classList.remove('active');
+
+                if (typeof Input !== 'undefined') {
+                    Input.setVirtualButton('left', false);
+                    Input.setVirtualButton('right', false);
+                    Input.setVirtualButton('up', false);
+                    Input.setVirtualButton('down', false);
+                }
+            }
+
+            base.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                if (activeTouchId === null) {
+                    activeTouchId = touch.identifier;
+                    updateJoystick(touch.clientX, touch.clientY);
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchmove', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier === activeTouchId) {
+                        e.preventDefault();
+                        updateJoystick(touch.clientX, touch.clientY);
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchend', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        e.preventDefault();
+                        resetJoystick();
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchcancel', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        resetJoystick();
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            // Mouse fallback for testing on desktop browsers
+            let isMouseDown = false;
+            base.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                updateJoystick(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+                updateJoystick(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', () => {
+                if (!isMouseDown) return;
+                isMouseDown = false;
+                resetJoystick();
+            });
+        });
+    </script>
+</body>
+</html>
