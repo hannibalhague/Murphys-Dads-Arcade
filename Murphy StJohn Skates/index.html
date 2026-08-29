@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skate Chibi World</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        #game-container { position: relative; }
+
+        #btn-game-select {
+            position: absolute;
+            top: 62px;
+            left: 10px;
+            right: auto;
+            z-index: 1000;
+            padding: 7px 10px;
+            border: 2px solid rgba(255,255,255,.65);
+            border-radius: 7px;
+            background: rgba(20,20,25,.86);
+            color: #fff;
+            font: 900 10px monospace;
+            letter-spacing: .5px;
+            cursor: pointer;
+            touch-action: manipulation;
+            box-shadow: 0 3px 10px rgba(0,0,0,.55);
+        }
+
+        #btn-game-select:active {
+            transform: scale(.95);
+            background: rgba(255,90,140,.9);
+        }
+
+        @media (max-width:700px) {
+            #btn-game-select {
+                top: 58px;
+                left: 7px;
+                right: auto;
+                padding: 6px 8px;
+                font-size: 9px;
+            }
+        }
+    </style>
+
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="top-controls">
+            <button id="muteButton" class="mute-btn">Music: ON</button>
+            <button id="pauseButton" class="pause-btn">PAUSE</button>
+        </div>
+        <button id="btn-game-select" type="button">← GAME SELECT</button>
+        <canvas id="game"></canvas>
+    </div>
+
+    <div id="controls">
+        <div class="left-controls">
+            <button id="btn-left" class="game-btn">A</button>
+            <button id="btn-right" class="game-btn">D</button>
+        </div>
+
+        <div class="right-controls">
+            <button id="btn-jump" class="game-btn">SPACE</button>
+            <button id="btn-punch" class="game-btn punch-btn">J / F</button>
+        </div>
+    </div>
+
+    <script src="js/utils.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/background.js"></script>
+    <script src="js/objects.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/npcs.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/characters.js"></script>
+    <script src="js/characterSelect.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/title.js"></script>
+    <script src="js/game.js"></script>
+
+    <script>
+        (() => {
+            let leavingGame = false;
+            let selectWasDown = false;
+
+            function goToGameSelection() {
+                if (leavingGame) return;
+                leavingGame = true;
+                const gameSelectURL = '../index.html';
+
+                try {
+                    window.top.location.href = gameSelectURL;
+                } catch (_) {
+                    window.location.href = gameSelectURL;
+                }
+            }
+
+            window.goToGameSelection = goToGameSelection;
+
+            window.addEventListener('DOMContentLoaded', () => {
+                const btn = document.getElementById('btn-game-select');
+                if (btn) {
+                    btn.addEventListener('pointerdown', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        goToGameSelection();
+                    });
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape' || e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    goToGameSelection();
+                }
+            }, true);
+
+            function watchGamepadSelect() {
+                const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+                let down = false;
+
+                for (const gp of pads) {
+                    if (gp && gp.buttons[8] && gp.buttons[8].pressed) {
+                        down = true;
+                        break;
+                    }
+                }
+
+                if (down && !selectWasDown) goToGameSelection();
+                selectWasDown = down;
+
+                if (!leavingGame) requestAnimationFrame(watchGamepadSelect);
+            }
+
+            requestAnimationFrame(watchGamepadSelect);
+        })();
+    </script>
+
+    <script>
+        window.addEventListener('load', () => {
+            if (window.Game) {
+                window.Game.init();
+                window.Game.start();
+            }
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+    </script>
+</body>
+</html>
